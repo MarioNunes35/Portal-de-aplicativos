@@ -54,7 +54,7 @@ def validate_user(username: str, password: str) -> bool:
         password_hash = result[0]
         return hash_password(password) == password_hash
 
-# --- Estilo Visual (Corrigido) ---
+# --- Estilo Visual ---
 
 CLAUDE_STYLE_CSS = """
 <style>
@@ -73,9 +73,9 @@ html, body, .stApp {
     overflow-x: hidden;
 }
 
-/* CORREÇÃO PRINCIPAL: Remover espaçamentos do Streamlit */
+/* Remover espaçamentos do Streamlit */
 .main .block-container {
-    padding-top: 0 !important;
+    padding-top: 2rem !important;
     padding-bottom: 0 !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
@@ -87,19 +87,9 @@ header[data-testid="stHeader"] {
     display: none !important;
 }
 
-/* Container principal da aplicação */
+/* Container principal */
 div[data-testid="stAppViewContainer"] {
     min-height: 100vh;
-    height: 100vh;
-}
-
-/* Remover margens do container principal */
-section[data-testid="stSidebar"] {
-    display: none !important;
-}
-
-.stApp > div:first-child {
-    height: 100vh;
 }
 
 /* Scrollbar */
@@ -107,18 +97,13 @@ section[data-testid="stSidebar"] {
 ::-webkit-scrollbar-track { background: #1a1a1a; }
 ::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 4px; }
 
-/* PÁGINA DE LOGIN - CORRIGIDA */
-.login-container {
+/* PÁGINA DE LOGIN */
+.login-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    background: #0e0e0e;
-    z-index: 1000;
+    min-height: calc(100vh - 4rem);
+    padding: 20px;
 }
 
 .login-card {
@@ -129,7 +114,7 @@ section[data-testid="stSidebar"] {
     box-shadow: 0 10px 40px rgba(0,0,0,0.8);
     width: 100%;
     max-width: 400px;
-    margin: 0 20px;
+    margin: 0 auto;
 }
 
 .login-header { 
@@ -138,10 +123,14 @@ section[data-testid="stSidebar"] {
 }
 
 .login-title { 
-    font-size: 24px; 
+    font-size: 28px; 
     font-weight: 600; 
     margin-bottom: 8px; 
     color: #fff; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 
 .login-subtitle { 
@@ -149,124 +138,128 @@ section[data-testid="stSidebar"] {
     font-size: 14px; 
 }
 
-.form-group { 
-    margin-bottom: 20px; 
-}
-
 .form-label { 
     display: block; 
     margin-bottom: 8px; 
+    margin-top: 20px;
     font-size: 13px; 
     color: #888; 
+    font-weight: 500;
 }
 
-/* Estilo dos Inputs */
-input[type="text"], input[type="password"] {
+/* Estilo dos Inputs do Streamlit */
+.stTextInput > div > div > input {
     background: #0e0e0e !important;
     border: 1px solid #2a2a2a !important;
     border-radius: 6px !important;
     color: #e0e0e0 !important;
     padding: 12px !important;
-    width: 100% !important;
+    font-size: 14px !important;
 }
 
-input:focus {
+.stTextInput > div > div > input:focus {
     outline: none !important;
-    border-color: #3a3a3a !important;
-    box-shadow: 0 0 0 2px #3a3a3a !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 1px #667eea !important;
 }
 
 /* Botões */
-.stButton button {
+.login-card .stButton > button {
     width: 100%;
     padding: 12px 20px;
     background: #667eea;
     color: white;
-    border: 1px solid #667eea;
+    border: none;
     border-radius: 6px;
     font-size: 14px;
     font-weight: 600;
     transition: all 0.2s;
+    margin-top: 24px;
 }
 
-.stButton button:hover {
+.login-card .stButton > button:hover {
     background: #5a67d8;
-    border-color: #5a67d8;
 }
 
-.stButton button:focus {
-    box-shadow: 0 0 0 2px #5a67d8 !important;
+/* Mensagens de erro */
+.stAlert {
+    margin-top: 20px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
 }
 
-/* PÁGINA DO PORTAL - CORRIGIDA */
+/* PÁGINA DO PORTAL */
 .portal-wrapper {
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
 }
 
 /* Header do Portal */
 .header-bar {
     background: #141414;
     border-bottom: 1px solid #2a2a2a;
-    padding: 12px 24px;
+    padding: 16px 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-shrink: 0;
-    z-index: 999;
+    margin: -2rem -1rem 0 -1rem;
+    width: calc(100% + 2rem);
 }
 
 .header-title { 
-    font-size: 16px; 
+    font-size: 18px; 
     font-weight: 600; 
     color: #fff; 
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
-.header-actions .stButton button {
+.header-bar .stButton > button {
     background: transparent;
     border: 1px solid #3a3a3a;
     padding: 6px 14px;
     font-size: 13px;
-    width: auto;
+    color: #888;
+    transition: all 0.2s;
 }
 
-.header-actions .stButton button:hover {
+.header-bar .stButton > button:hover {
     border-color: #e06c75;
     color: #e06c75;
+    background: rgba(224, 108, 117, 0.1);
 }
 
 /* Conteúdo do Portal */
 .portal-content { 
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px 24px;
+    padding: 30px 24px;
 }
 
 .portal-header {
-    margin-bottom: 24px;
+    margin-bottom: 30px;
 }
 
-.portal-header h3 { 
+.portal-header h2 { 
     color: #fff; 
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     margin-bottom: 8px;
 }
 
 .portal-header p { 
     color: #888; 
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
 /* Barra de busca */
-div[data-testid="stTextInput"] > div > div > input {
+.search-container .stTextInput > div > div > input {
     background: #1a1a1a !important;
     border: 1px solid #2a2a2a !important;
     border-radius: 8px !important;
     color: #e0e0e0 !important;
     padding: 12px 16px !important;
-    margin-bottom: 20px !important;
+    font-size: 14px !important;
 }
 
 /* Cards dos Apps */
@@ -276,26 +269,29 @@ div[data-testid="stTextInput"] > div > div > input {
     border-radius: 12px;
     padding: 24px;
     margin-bottom: 20px;
-    height: 260px;
+    height: 280px;
     display: flex;
     flex-direction: column;
     transition: all 0.2s;
+    cursor: pointer;
 }
 
 .app-card:hover {
     transform: translateY(-3px);
     border-color: #3a3a3a;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4);
 }
 
 .app-icon { 
-    font-size: 36px; 
-    margin-bottom: 12px; 
+    font-size: 40px; 
+    margin-bottom: 16px; 
 }
 
 .app-card h3 { 
-    font-size: 1.2rem; 
+    font-size: 1.1rem; 
     color: #fff; 
-    margin-bottom: 8px; 
+    margin-bottom: 10px; 
+    font-weight: 600;
 }
 
 .app-card p { 
@@ -314,151 +310,183 @@ div[data-testid="stTextInput"] > div > div > input {
     border-radius: 6px;
     text-decoration: none;
     font-weight: 600;
+    font-size: 13px;
     transition: all 0.2s;
     text-align: center;
 }
 
 .app-card a:hover {
-    background: #3a3a3a;
-    border-color: #4a4a4a;
+    background: #667eea;
+    border-color: #667eea;
     color: #fff;
 }
 
 /* Ocultar elementos desnecessários do Streamlit */
-.stDeployButton {
-    display: none !important;
-}
-
-div[data-testid="stDecoration"] {
-    display: none !important;
-}
-
+.stDeployButton, 
+div[data-testid="stDecoration"],
 footer {
     display: none !important;
 }
 
-.stApp > div:first-child > div:first-child {
-    padding-top: 0 !important;
+/* Responsividade */
+@media (max-width: 768px) {
+    .header-bar {
+        padding: 12px 16px;
+    }
+    
+    .portal-content {
+        padding: 20px 16px;
+    }
+    
+    .app-card {
+        height: auto;
+        min-height: 250px;
+    }
 }
 </style>
 """
 
+# --- Página de Login ---
+
+def show_login_page():
+    """Exibe a página de login."""
+    st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
+    
+    # Container centralizado
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+    
+    # Criar colunas para centralizar o card
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown('''
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-title">
+                    <span>🚀</span>
+                    <span>Acesso ao Portal</span>
+                </div>
+                <p class="login-subtitle">Entre com suas credenciais para continuar</p>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+        # Adicionar espaço antes dos campos
+        st.markdown('<div style="margin-top: -20px;"></div>', unsafe_allow_html=True)
+        
+        # Campo de usuário
+        st.markdown('<p class="form-label">Usuário</p>', unsafe_allow_html=True)
+        username = st.text_input("Usuario", key="login_username", label_visibility="collapsed", placeholder="Digite seu usuário")
+        
+        # Campo de senha
+        st.markdown('<p class="form-label">Senha</p>', unsafe_allow_html=True)
+        password = st.text_input("Senha", type="password", key="login_password", label_visibility="collapsed", placeholder="Digite sua senha")
+        
+        # Botão de login
+        if st.button("Entrar", use_container_width=True, type="primary"):
+            if validate_user(username, password):
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Usuário ou senha inválidos.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
 # --- Interface do Portal ---
 
 def show_portal():
-    """Exibe o portal de aplicativos com layout corrigido."""
+    """Exibe o portal de aplicativos."""
     st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
-
-    # Container wrapper para controlar o layout
+    
+    # Container wrapper
     st.markdown('<div class="portal-wrapper">', unsafe_allow_html=True)
     
-    # ---------- HEADER ----------
-    st.markdown('<div class="header-bar">', unsafe_allow_html=True)
-    header_cols = st.columns([0.8, 0.2])
-    with header_cols[0]:
-        st.markdown('<div class="header-title">🚀 Portal de Análises</div>', unsafe_allow_html=True)
-    with header_cols[1]:
-        st.markdown('<div class="header-actions">', unsafe_allow_html=True)
+    # Header
+    st.markdown('''
+    <div class="header-bar">
+        <div class="header-title">
+            <span>🚀</span>
+            <span>Portal de Análises</span>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    # Botão de logout posicionado no canto
+    col1, col2 = st.columns([10, 1])
+    with col2:
         if st.button("Sair", key="logout_button"):
             st.session_state.authenticated = False
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ---------- CONTEÚDO DO PORTAL ----------
+    
+    # Conteúdo do portal
     st.markdown('<div class="portal-content">', unsafe_allow_html=True)
     
-    # Cabeçalho do portal
+    # Cabeçalho
     st.markdown('''
     <div class="portal-header">
-        <h3>Seu portal de aplicativos</h3>
-        <p>Acesse as ferramentas de análise de forma rápida e organizada.</p>
+        <h2>Seus aplicativos</h2>
+        <p>Acesse as ferramentas de análise de forma rápida e organizada</p>
     </div>
     ''', unsafe_allow_html=True)
-
+    
     # Barra de busca
-    q = st.text_input("Buscar", placeholder="Buscar por nome ou descrição...", label_visibility="collapsed").strip().lower()
-
-    # ---------- DADOS DOS APPS ----------
+    st.markdown('<div class="search-container">', unsafe_allow_html=True)
+    search_query = st.text_input("Buscar", placeholder="🔍 Buscar por nome ou descrição...", label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Lista de aplicativos
     APPS = [
-        {"name": "TG/ADT Events", "desc": "Análise de eventos térmicos em TG/ADT.", "emoji": "🔥", "url": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app/"},
-        {"name": "Stack Graph", "desc": "Criação de gráficos empilhados.", "emoji": "📊", "url": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app/"},
-        {"name": "Rheology App", "desc": "Análise de dados de reologia.", "emoji": "🔄", "url": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app/"},
-        {"name": "Mechanical Properties", "desc": "Cálculo de propriedades mecânicas.", "emoji": "⚙️", "url": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app/"},
-        {"name": "Baseline Smoothing", "desc": "Suavização de linha de base em gráficos.", "emoji": "📈", "url": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app/"},
-        {"name": "Isotherms App", "desc": "Análise de isotermas de adsorção.", "emoji": "🌡️", "url": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app/"},
-        {"name": "Histograms", "desc": "Geração de histogramas customizados.", "emoji": "📶", "url": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app/"},
-        {"name": "Column 3D Line", "desc": "Visualização de dados em 3D com linhas.", "emoji": "🌐", "url": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app/"},
-        {"name": "Crystallinity DSC/XRD", "desc": "Cálculo de cristalinidade por DSC e XRD.", "emoji": "💎", "url": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app/"},
-        {"name": "Column 3D", "desc": "Visualização de dados em colunas 3D.", "emoji": "🏛️", "url": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app/"},
-        {"name": "Kinetic Models", "desc": "Ajuste de modelos cinéticos.", "emoji": "⚗️", "url": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app/"},
-        {"name": "Python Launcher", "desc": "Executor de scripts Python online.", "emoji": "🐍", "url": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app/"},
+        {"name": "TG/ADT Events", "desc": "Análise de eventos térmicos em TG/ADT com identificação automática de picos.", "emoji": "🔥", "url": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app/"},
+        {"name": "Stack Graph", "desc": "Criação de gráficos empilhados para visualização de dados multidimensionais.", "emoji": "📊", "url": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app/"},
+        {"name": "Rheology App", "desc": "Análise completa de dados de reologia com ajuste de modelos.", "emoji": "🔄", "url": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app/"},
+        {"name": "Mechanical Properties", "desc": "Cálculo de propriedades mecânicas e análise de tensão-deformação.", "emoji": "⚙️", "url": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app/"},
+        {"name": "Baseline Smoothing", "desc": "Suavização de linha de base em gráficos com algoritmos avançados.", "emoji": "📈", "url": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app/"},
+        {"name": "Isotherms App", "desc": "Análise de isotermas de adsorção com modelos de Langmuir e Freundlich.", "emoji": "🌡️", "url": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app/"},
+        {"name": "Histograms", "desc": "Geração de histogramas customizados com análise estatística.", "emoji": "📶", "url": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app/"},
+        {"name": "Column 3D Line", "desc": "Visualização de dados em 3D com projeções e rotação interativa.", "emoji": "🌐", "url": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app/"},
+        {"name": "Crystallinity DSC/XRD", "desc": "Cálculo de cristalinidade por DSC e XRD com análise comparativa.", "emoji": "💎", "url": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app/"},
+        {"name": "Column 3D", "desc": "Visualização de dados em colunas 3D com mapeamento de cores.", "emoji": "🏛️", "url": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app/"},
+        {"name": "Kinetic Models", "desc": "Ajuste de modelos cinéticos com otimização de parâmetros.", "emoji": "⚗️", "url": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app/"},
+        {"name": "Python Launcher", "desc": "Executor de scripts Python online com ambiente isolado.", "emoji": "🐍", "url": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app/"},
     ]
     
-    apps_filtrados = [a for a in APPS if q in a["name"].lower() or q in a["desc"].lower()] if q else APPS
-
-    # ---------- RENDERIZAÇÃO DOS CARDS ----------
-    if apps_filtrados:
-        cols = st.columns(3)
-        for i, app in enumerate(apps_filtrados):
+    # Filtrar apps baseado na busca
+    query = search_query.lower().strip() if search_query else ""
+    filtered_apps = [app for app in APPS if query in app["name"].lower() or query in app["desc"].lower()] if query else APPS
+    
+    # Renderizar cards
+    if filtered_apps:
+        # Criar grid de 3 colunas
+        cols = st.columns(3, gap="medium")
+        
+        for i, app in enumerate(filtered_apps):
             with cols[i % 3]:
                 st.markdown(f"""
                 <div class="app-card">
                     <div class="app-icon">{app['emoji']}</div>
                     <h3>{app['name']}</h3>
                     <p>{app['desc']}</p>
-                    <a href="{app['url']}" target="_blank" rel="noopener">Abrir →</a>
+                    <a href="{app['url']}" target="_blank" rel="noopener">Abrir aplicativo →</a>
                 </div>
                 """, unsafe_allow_html=True)
     else:
-        st.info("Nenhum aplicativo encontrado para o termo buscado.")
+        st.info("🔍 Nenhum aplicativo encontrado para o termo buscado.")
     
     st.markdown('</div>', unsafe_allow_html=True)  # Fecha portal-content
     st.markdown('</div>', unsafe_allow_html=True)  # Fecha portal-wrapper
-
-
-# --- Página de Login ---
-
-def show_login_page():
-    """Exibe a página de login centralizada e corrigida."""
-    st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
-    
-    # Container de login centralizado
-    st.markdown('''
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <h1 class="login-title">🚀 Acesso ao Portal</h1>
-                <p class="login-subtitle">Entre com suas credenciais para continuar</p>
-            </div>
-    ''', unsafe_allow_html=True)
-    
-    # Formulário de login
-    st.markdown('<div class="form-group"><span class="form-label">Usuário</span></div>', unsafe_allow_html=True)
-    username = st.text_input("Usuário", key="login_username", label_visibility="collapsed")
-    
-    st.markdown('<div class="form-group"><span class="form-label">Senha</span></div>', unsafe_allow_html=True)
-    password = st.text_input("Senha", type="password", key="login_password", label_visibility="collapsed")
-    
-    if st.button("Entrar", use_container_width=True):
-        if validate_user(username, password):
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos.")
-    
-    st.markdown('</div></div>', unsafe_allow_html=True)  # Fecha login-card e login-container
-
 
 # --- Lógica Principal ---
 
 def main():
     """Função principal que controla qual página exibir."""
+    # Criar banco de dados
     create_user_db()
-
+    
+    # Inicializar estado de autenticação
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-
+    
+    # Exibir página apropriada
     if st.session_state.authenticated:
         show_portal()
     else:
