@@ -181,10 +181,11 @@ h1, h2, h3{
     background: rgba(255,255,255,0.06) !important;
     border: 1px solid rgba(255,255,255,0.18) !important;
     border-radius: 20px !important;
-    padding: 40px !important;
+    padding: 32px !important;
     box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
     backdrop-filter: blur(10px) !important;
-    width: min(460px, 90vw) !important;
+    width: min(420px, 90vw) !important;
+    max-height: 80vh !important;
     position: fixed !important;
     top: 50% !important;
     left: 50% !important;
