@@ -477,6 +477,7 @@ def show_login_page():
 
 
 def show_portal():
+    """Exibe o portal de aplicativos."""
     
     # Correção de espaçamento: aproxima o conteúdo do topo
     st.markdown(
@@ -488,7 +489,7 @@ def show_portal():
         """,
         unsafe_allow_html=True
     )
-"""Exibe o portal de aplicativos."""
+
     # Aplicar CSS
     st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
     
@@ -649,6 +650,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
