@@ -424,6 +424,9 @@ def show_login_page():
         """
         <style>
         [data-testid="stForm"] {
+            display:inline-block !important;
+            height:auto !important;
+            min-height: 0 !important;
             position: fixed !important;
             top: 50% !important;
             left: 50% !important;
@@ -474,7 +477,18 @@ def show_login_page():
 
 
 def show_portal():
-    """Exibe o portal de aplicativos."""
+    
+    # Correção de espaçamento: aproxima o conteúdo do topo
+    st.markdown(
+        """
+        <style>
+        .portal-container{ position: static !important; height: auto !important; min-height: 100vh !important; }
+        .portal-main{ margin-top: 80px !important; height: auto !important; padding-top: 8px !important; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+"""Exibe o portal de aplicativos."""
     # Aplicar CSS
     st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
     
@@ -635,6 +649,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
