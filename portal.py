@@ -181,11 +181,11 @@ h1, h2, h3{
     background: rgba(255,255,255,0.06) !important;
     border: 1px solid rgba(255,255,255,0.18) !important;
     border-radius: 20px !important;
-    padding: 32px !important;
+    padding: 24px !important;
     box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
     backdrop-filter: blur(10px) !important;
-    width: min(420px, 90vw) !important;
-    max-height: 80vh !important;
+    width: min(400px, 90vw) !important;
+    max-height: 70vh !important;
     position: fixed !important;
     top: 50% !important;
     left: 50% !important;
@@ -194,18 +194,18 @@ h1, h2, h3{
 }
 
 .login-title {
-    font-size: 32px !important;
+    font-size: 28px !important;
     font-weight: 700 !important;
     color: #fff !important;
-    margin-bottom: 8px !important;
+    margin-bottom: 4px !important;
     text-align: center !important;
 }
 
 .login-subtitle {
     color: #CBD5E1 !important;
-    font-size: 16px !important;
+    font-size: 14px !important;
     text-align: center !important;
-    margin-bottom: 32px !important;
+    margin-bottom: 20px !important;
 }
 
 /* Inputs do login */
