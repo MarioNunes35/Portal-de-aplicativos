@@ -77,7 +77,7 @@ html, body, .stApp {
 .main .block-container {
     padding: 0 !important;
     max-width: 100% !important;
-    height: 100vh !important;
+    min-height: 100vh !important;
 }
 
 .main {
@@ -105,8 +105,8 @@ div[data-testid="stAppViewContainer"] {
 }
 
 .stApp > div:first-child {
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
+    overflow: visible;
 }
 
 /* Scrollbar */
@@ -208,14 +208,11 @@ div[data-testid="stAppViewContainer"] {
 
 /* ================ PÁGINA DO PORTAL ================ */
 .portal-container {
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
+    width: 100%;
+    min-height: 100vh;
+    background: #0e0e0e;
     display: flex;
     flex-direction: column;
-    background: #0e0e0e;
 }
 
 /* Header fixo no topo */
@@ -226,10 +223,8 @@ div[data-testid="stAppViewContainer"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    position: fixed;
+    position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
     z-index: 1000;
     height: 80px;
 }
@@ -260,12 +255,11 @@ div[data-testid="stAppViewContainer"] {
     background: rgba(224, 108, 117, 0.1);
 }
 
-/* Área de conteúdo com scroll */
+/* Área de conteúdo principal */
 .portal-main {
-    margin-top: 80px;
-    height: calc(100vh - 80px);
-    overflow-y: auto;
+    flex: 1;
     padding: 40px;
+    padding-top: 20px;
 }
 
 .content-header {
@@ -385,6 +379,24 @@ div[data-testid="stToolbar"] {
     justify-content: center;
 }
 
+/* Botão de logout posicionado no header */
+.logout-button {
+    background: transparent !important;
+    border: 1px solid #3a3a3a !important;
+    color: #888 !important;
+    padding: 10px 20px !important;
+    border-radius: 6px !important;
+    font-size: 15px !important;
+    transition: all 0.2s !important;
+    height: auto !important;
+}
+
+.logout-button:hover {
+    border-color: #e06c75 !important;
+    color: #e06c75 !important;
+    background: rgba(224, 108, 117, 0.1) !important;
+}
+
 /* Responsividade */
 @media (max-width: 768px) {
     .login-box {
@@ -402,6 +414,7 @@ div[data-testid="stToolbar"] {
     
     .portal-main {
         padding: 20px;
+        padding-top: 15px;
     }
     
     .app-card {
@@ -481,59 +494,30 @@ def show_portal():
     # Aplicar CSS
     st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
 
-    # Correção de espaçamento (aplicada após o CSS base)
-    st.markdown(
-        """
-        <style>
-        .portal-container{ position: static !important; height: auto !important; min-height: 100vh !important; }
-        .portal-main{ margin-top: 88px !important; height: auto !important; padding-top: 8px !important; }
-        .block-container{ padding-top: 0 !important; }
-        .main .block-container{ padding-top: 0 !important; }
-        </style>
-        """, unsafe_allow_html=True
-    )
-
-    
     # Container do portal
     st.markdown('<div class="portal-container">', unsafe_allow_html=True)
     
-    # Header fixo
-    st.markdown("""
-    <div class="portal-header">
-        <div class="portal-logo">
-            <span>🚀</span>
-            <span>Portal de Análises</span>
+    # Header com logo e botão de logout
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.markdown("""
+        <div class="portal-header">
+            <div class="portal-logo">
+                <span>🚀</span>
+                <span>Portal de Análises</span>
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
-    
-    # Botão de logout fixo no header (sem ocupar espaço na página)
-    st.markdown(
-        """
-        <style>
-        .logout-fixed { position: fixed; top: 16px; right: 24px; z-index: 1200; }
-        .logout-fixed .stButton > button {
-            background: transparent;
-            border: 1px solid #3a3a3a;
-            color: #fff;
-            padding: 8px 14px;
-            border-radius: 8px;
-            font-weight: 600;
-        }
-        .logout-fixed .stButton > button:hover { background: #222; border-color: #555; }
-        </style>
-        <div class="logout-fixed">
-        """,
-        unsafe_allow_html=True
-    )
-    if st.button("Sair", key="logout"):
-        st.session_state.authenticated = False
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown('<div style="padding: 20px 0;">', unsafe_allow_html=True)
+        if st.button("Sair", key="logout"):
+            st.session_state.authenticated = False
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Área principal com scroll
-
+    # Área principal
     st.markdown('<div class="portal-main">', unsafe_allow_html=True)
     
     # Cabeçalho do conteúdo
