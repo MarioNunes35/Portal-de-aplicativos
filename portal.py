@@ -185,6 +185,10 @@ h1, h2, h3{
     box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
     backdrop-filter: blur(10px) !important;
     width: min(460px, 90vw) !important;
+    margin: 0 auto !important;
+    position: relative !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
 }
 
 .login-title {
