@@ -69,6 +69,16 @@ html, body, .stApp {
     color: #e0e0e0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+/* Remover o espaçamento padrão do Streamlit no topo/baixo */
+main .block-container { 
+    padding-top: 0.25rem !important; 
+    padding-bottom: 1rem !important; 
+}
+/* Corrige empurrão causado pelo cabeçalho */
+header[data-testid="stHeader"] { background: transparent; }
+/* Evita que o conteúdo "escorregue" para baixo em resoluções altas */
+div[data-testid="stAppViewContainer"] { min-height: 100dvh; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #1a1a1a; }
@@ -80,7 +90,7 @@ html, body, .stApp {
     align-items: center;
     justify-content: center;
     width: 100%;
-    min-height: 95vh;
+    min-height: 100dvh;
 }
 /* Estiliza a coluna central do Streamlit para parecer um card */
 .login-container div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(2) > div {
@@ -140,7 +150,7 @@ input:focus {
     position: sticky;
     top: 0;
     z-index: 999;
-    margin: -1rem -1rem 1rem -1rem; /* Ajuste para colar no topo */
+    margin: 0 -1rem 1rem -1rem; /* Ajuste para colar no topo */
 }
 .header-title { font-size: 16px; font-weight: 600; color: #fff; }
 .header-actions .stButton button {
@@ -307,3 +317,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
