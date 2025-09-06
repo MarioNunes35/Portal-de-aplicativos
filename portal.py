@@ -478,20 +478,21 @@ def show_login_page():
 
 def show_portal():
     """Exibe o portal de aplicativos."""
-    
-    # Correção de espaçamento: aproxima o conteúdo do topo
+    # Aplicar CSS
+    st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
+
+    # Correção de espaçamento (aplicada após o CSS base)
     st.markdown(
         """
         <style>
         .portal-container{ position: static !important; height: auto !important; min-height: 100vh !important; }
-        .portal-main{ margin-top: 80px !important; height: auto !important; padding-top: 8px !important; }
+        .portal-main{ margin-top: 88px !important; height: auto !important; padding-top: 8px !important; }
+        .block-container{ padding-top: 0 !important; }
+        .main .block-container{ padding-top: 0 !important; }
         </style>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 
-    # Aplicar CSS
-    st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
     
     # Container do portal
     st.markdown('<div class="portal-container">', unsafe_allow_html=True)
@@ -668,6 +669,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
