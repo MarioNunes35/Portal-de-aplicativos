@@ -54,373 +54,190 @@ def validate_user(username: str, password: str) -> bool:
         password_hash = result[0]
         return hash_password(password) == password_hash
 
-# --- Estilo Visual ---
+# --- Estilo Visual (baseado no seu app que funciona) ---
 
-CLAUDE_STYLE_CSS = """
+PORTAL_STYLE_CSS = """
 <style>
-/* Reset e Base */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+.stApp {
+  background:
+    radial-gradient(1200px 500px at 20% -10%, rgba(99,102,241,0.25), transparent 40%),
+    radial-gradient(1000px 450px at 90% 10%, rgba(45,212,191,0.22), transparent 40%),
+    linear-gradient(180deg, #121317 0%, #0f1116 100%) !important;
+  color: #EAEAF1;
 }
 
-html, body, .stApp {
-    background: #0e0e0e !important;
-    color: #e0e0e0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    height: 100vh;
-    overflow-x: hidden;
+/* Header fixo */
+.nav { 
+  position: sticky; top: 0; z-index: 20; padding: 14px 22px; margin: -1.2rem -1rem 0 -1rem;
+  backdrop-filter: blur(8px); background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.12); 
+  display: flex; justify-content: space-between; align-items: center;
+}
+.brand { 
+  font-weight: 700; font-size: 1.05rem; letter-spacing: .02em; 
+  display: flex; align-items: center; gap: 12px;
 }
 
-/* IMPORTANTE: Remover todos os paddings padrão do Streamlit */
-.main .block-container {
-    padding: 0 !important;
-    max-width: 100% !important;
-    min-height: 100vh !important;
+/* Inputs */
+.block-container input[type="text"]{
+  background: rgba(255,255,255,0.08) !important; 
+  border: 1px solid rgba(255,255,255,0.20) !important;
+  border-radius: 999px !important; 
+  color: #fff !important;
+  padding: 16px 20px !important;
+  font-size: 16px !important;
+}
+.block-container .stTextInput > div > div{ 
+  border-radius: 999px !important; 
 }
 
-.main {
-    padding: 0 !important;
-    margin: 0 !important;
+/* Cards dos apps */
+.card{ 
+  position: relative; overflow: hidden; padding: 28px 24px 22px 24px; border-radius: 20px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; 
+  margin-bottom: 28px;
+  height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+.card:hover{ 
+  transform: translateY(-2px); 
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45); 
+  border-color: rgba(255,255,255,0.28); 
+}
+.card .accent{ 
+  position: absolute; left: 0; top: 0; bottom: 0; width: 4px; 
+}
+.icon{ 
+  width: 72px; height: 72px; border-radius: 50%; display: flex; 
+  align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.20); 
+  font-size: 32px; margin-bottom: 16px; 
+}
+.card h3{ 
+  margin: 6px 0 8px 0; font-size: 1.25rem; color: #fff; font-weight: 600;
+}
+.card p{ 
+  margin: 0 0 16px 0; color: #CBD5E1; line-height: 1.4; 
+  flex-grow: 1;
+}
+.actions{ 
+  display: flex; gap: 12px; align-items: center; margin-top: auto; 
+}
+.btn{ 
+  padding: 12px 20px; border-radius: 12px; background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.22); color: #fff; text-decoration: none; 
+  font-weight: 600; font-size: 14px;
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+  display: inline-block; text-align: center;
+}
+.btn:hover{ 
+  background: rgba(255,255,255,0.16); 
+  border-color: rgba(255,255,255,0.32); 
+  transform: translateY(-1px); 
 }
 
-/* Remover header e footer do Streamlit */
-header[data-testid="stHeader"] {
-    display: none !important;
+/* Títulos */
+h1, h2, h3{ 
+  color: #fff; 
+} 
+.subtitle{ 
+  color: #CBD5E1; margin-top: -6px; 
 }
 
-footer {
-    display: none !important;
+/* Responsividade */
+.stColumn > div {
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
 }
 
-/* Remover sidebar */
-section[data-testid="stSidebar"] {
-    display: none !important;
+/* Botão de logout */
+.logout-btn {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: #ef4444 !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s !important;
+}
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
 }
 
-/* Container principal ocupando toda a tela */
-div[data-testid="stAppViewContainer"] {
-    padding-top: 0 !important;
-}
-
-.stApp > div:first-child {
-    min-height: 100vh;
-    overflow: visible;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 10px; }
-::-webkit-scrollbar-track { background: #1a1a1a; }
-::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 4px; }
-
-/* ================ PÁGINA DE LOGIN ================ */
+/* LOGIN FORM */
 .login-container {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    background: #0e0e0e;
+    min-height: 100vh;
+    padding: 20px;
 }
 
-.login-box {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 16px;
-    padding: 60px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-    width: 90%;
-    max-width: 500px;
+[data-testid="stForm"] {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.18) !important;
+    border-radius: 20px !important;
+    padding: 40px !important;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
+    backdrop-filter: blur(10px) !important;
+    width: min(460px, 90vw) !important;
 }
 
 .login-title {
-    text-align: center;
-    margin-bottom: 50px;
+    font-size: 32px !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    margin-bottom: 8px !important;
+    text-align: center !important;
 }
 
-.login-title h1 {
-    font-size: 42px;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
+.login-subtitle {
+    color: #CBD5E1 !important;
+    font-size: 16px !important;
+    text-align: center !important;
+    margin-bottom: 32px !important;
 }
 
-.login-title p {
-    color: #888;
-    font-size: 18px;
-}
-
-.login-form-label {
-    display: block;
-    margin-bottom: 10px;
-    margin-top: 30px;
-    font-size: 16px;
-    color: #888;
-    font-weight: 500;
-}
-
-/* Inputs de login maiores */
-.login-container .stTextInput > div > div > input {
-    background: #0e0e0e !important;
-    border: 1px solid #2a2a2a !important;
-    border-radius: 8px !important;
-    color: #e0e0e0 !important;
-    padding: 18px 20px !important;
+/* Inputs do login */
+.login-container input[type="text"],
+.login-container input[type="password"] {
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.20) !important;
+    border-radius: 12px !important;
+    color: #fff !important;
+    padding: 16px 20px !important;
     font-size: 16px !important;
     height: 56px !important;
 }
 
-.login-container .stTextInput > div > div > input:focus {
-    outline: none !important;
-    border-color: #667eea !important;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1) !important;
+.login-container input[type="text"]:focus,
+.login-container input[type="password"]:focus {
+    border-color: rgba(99,102,241,0.5) !important;
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.1) !important;
 }
 
-/* Botão de login maior */
+/* Botão de login */
 .login-container .stButton > button {
-    width: 100%;
-    padding: 18px 30px;
-    background: #667eea;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 18px;
-    font-weight: 600;
-    height: 56px;
-    margin-top: 35px;
-    transition: all 0.2s;
-    cursor: pointer;
+    width: 100% !important;
+    padding: 16px 24px !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    height: 56px !important;
+    margin-top: 24px !important;
+    transition: all 0.2s !important;
 }
 
 .login-container .stButton > button:hover {
-    background: #5a67d8;
-    transform: translateY(-1px);
-    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-}
-
-/* ================ PÁGINA DO PORTAL ================ */
-.portal-container {
-    width: 100%;
-    min-height: 100vh;
-    background: #0e0e0e;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Header fixo no topo */
-.portal-header {
-    background: #141414;
-    border-bottom: 1px solid #2a2a2a;
-    padding: 20px 40px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    height: 80px;
-}
-
-.portal-logo {
-    font-size: 24px;
-    font-weight: 700;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.portal-header .stButton > button {
-    background: transparent;
-    border: 1px solid #3a3a3a;
-    padding: 10px 20px;
-    font-size: 15px;
-    color: #888;
-    border-radius: 6px;
-    transition: all 0.2s;
-    height: auto;
-}
-
-.portal-header .stButton > button:hover {
-    border-color: #e06c75;
-    color: #e06c75;
-    background: rgba(224, 108, 117, 0.1);
-}
-
-/* Área de conteúdo principal */
-.portal-main {
-    flex: 1;
-    padding: 40px;
-    padding-top: 20px;
-}
-
-.content-header {
-    margin-bottom: 40px;
-}
-
-.content-header h1 {
-    font-size: 32px;
-    color: #fff;
-    margin-bottom: 10px;
-    font-weight: 600;
-}
-
-.content-header p {
-    font-size: 18px;
-    color: #888;
-}
-
-/* Barra de busca estilizada */
-.stTextInput > div > div > input {
-    background: #1a1a1a !important;
-    border: 1px solid #2a2a2a !important;
-    border-radius: 10px !important;
-    color: #e0e0e0 !important;
-    padding: 16px 20px !important;
-    font-size: 16px !important;
-    margin-bottom: 30px !important;
-    height: 52px !important;
-}
-
-.stTextInput > div > div > input::placeholder {
-    color: #666 !important;
-}
-
-/* Cards maiores */
-.app-card {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 14px;
-    padding: 32px;
-    margin-bottom: 24px;
-    height: 320px;
-    display: flex;
-    flex-direction: column;
-    transition: all 0.2s;
-    cursor: pointer;
-}
-
-.app-card:hover {
-    transform: translateY(-4px);
-    border-color: #3a3a3a;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-}
-
-.app-icon {
-    font-size: 48px;
-    margin-bottom: 20px;
-}
-
-.app-card h3 {
-    font-size: 20px;
-    color: #fff;
-    margin-bottom: 12px;
-    font-weight: 600;
-}
-
-.app-card p {
-    font-size: 15px;
-    color: #888;
-    line-height: 1.6;
-    flex-grow: 1;
-}
-
-.app-card a {
-    display: inline-block;
-    padding: 12px 24px;
-    background: #2a2a2a;
-    color: #e0e0e0;
-    border: 1px solid #3a3a3a;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 15px;
-    transition: all 0.2s;
-    text-align: center;
-}
-
-.app-card a:hover {
-    background: #667eea;
-    border-color: #667eea;
-    color: #fff;
-    transform: translateX(2px);
-}
-
-/* Mensagens de erro */
-.stAlert {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 8px;
-    padding: 16px;
-    margin-top: 20px;
-    font-size: 15px;
-}
-
-/* Remover elementos desnecessários */
-.stDeployButton,
-div[data-testid="stDecoration"],
-div[data-testid="stToolbar"] {
-    display: none !important;
-}
-
-/* Ajuste para centralização vertical */
-.element-container:has(.login-container) {
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Botão de logout posicionado no header */
-.logout-button {
-    background: transparent !important;
-    border: 1px solid #3a3a3a !important;
-    color: #888 !important;
-    padding: 10px 20px !important;
-    border-radius: 6px !important;
-    font-size: 15px !important;
-    transition: all 0.2s !important;
-    height: auto !important;
-}
-
-.logout-button:hover {
-    border-color: #e06c75 !important;
-    color: #e06c75 !important;
-    background: rgba(224, 108, 117, 0.1) !important;
-}
-
-/* Responsividade */
-@media (max-width: 768px) {
-    .login-box {
-        padding: 40px 30px;
-        width: 95%;
-    }
-    
-    .login-title h1 {
-        font-size: 32px;
-    }
-    
-    .portal-header {
-        padding: 15px 20px;
-    }
-    
-    .portal-main {
-        padding: 20px;
-        padding-top: 15px;
-    }
-    
-    .app-card {
-        height: auto;
-        min-height: 280px;
-    }
+    transform: translateY(-1px) !important;
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3) !important;
 }
 </style>
 """
@@ -428,51 +245,26 @@ div[data-testid="stToolbar"] {
 # --- Página de Login ---
 
 def show_login_page():
-    """Exibe a página de login centralizada (form Streamlit no centro)."""
-    # Mantém o CSS global do app
-    st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
-
-    # CSS específico para centralizar o st.form e dar aparência de "login-box"
-    st.markdown(
-        """
-        <style>
-        [data-testid="stForm"] {
-            display:inline-block !important;
-            height:auto !important;
-            min-height: 0 !important;
-            position: fixed !important;
-            top: 50% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            width: min(560px, 92vw);
-            z-index: 999;
-            margin: 0 !important;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 16px;
-            padding: 36px 34px 28px 34px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-        }
-        .login-title-h1 { font-size: 40px; line-height: 1.1; margin: 0 0 2px 0; }
-        .login-sub { color:#9aa0a6; font-size: 18px; margin: 2px 0 22px 0; }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
+    """Exibe a página de login."""
+    st.markdown(PORTAL_STYLE_CSS, unsafe_allow_html=True)
+    
     with st.form("login_form", clear_on_submit=False):
-        st.markdown('<h1 class="login-title-h1">🚀 Acesso ao<br>Portal</h1>', unsafe_allow_html=True)
-        st.markdown('<p class="login-sub">Entre com suas credenciais para continuar</p>', unsafe_allow_html=True)
+        st.markdown('<h1 class="login-title">🚀 Portal de Análises</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="login-subtitle">Entre com suas credenciais para continuar</p>', unsafe_allow_html=True)
 
-        col1, col2 = st.columns([1,1])
+        username = st.text_input("Usuário", placeholder="Digite seu usuário", key="login_username")
+        password = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="login_password")
+        
+        col1, col2 = st.columns([1, 1])
         with col1:
-            username = st.text_input("Usuário ou e-mail", placeholder="seunome@exemplo.com", key="login_username")
+            remember = st.checkbox("Lembrar-me", value=True)
         with col2:
-            show_pwd = st.toggle("Mostrar senha", value=False, key="login_showpwd")
-        password = st.text_input("Senha", type=("text" if show_pwd else "password"),
-                                 placeholder="••••••••", key="login_password")
-        remember = st.checkbox("Lembrar-me", value=True, key="login_remember")
-        submitted = st.form_submit_button("Entrar", use_container_width=True)
+            show_pwd = st.checkbox("Mostrar senha")
+            
+        if show_pwd:
+            password = st.text_input("Senha visível", value=password, placeholder="Digite sua senha", key="login_password_visible")
+        
+        submitted = st.form_submit_button("Entrar")
 
     if submitted:
         if not username or not password:
@@ -491,47 +283,31 @@ def show_login_page():
 
 def show_portal():
     """Exibe o portal de aplicativos."""
-    # Aplicar CSS
-    st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
-
-    # Container do portal
-    st.markdown('<div class="portal-container">', unsafe_allow_html=True)
+    st.markdown(PORTAL_STYLE_CSS, unsafe_allow_html=True)
     
-    # Header com logo e botão de logout
-    col1, col2 = st.columns([3, 1])
+    # Header com logout (seguindo o padrão do seu app)
+    st.markdown('''
+    <div class="nav">
+        <span class="brand">
+            <span>🚀</span>
+            <span>Portal de Análises</span>
+        </span>
+    </div>
+    ''', unsafe_allow_html=True)
     
-    with col1:
-        st.markdown("""
-        <div class="portal-header">
-            <div class="portal-logo">
-                <span>🚀</span>
-                <span>Portal de Análises</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
+    # Botão de logout posicionado no canto superior direito
+    col1, col2 = st.columns([10, 1])
     with col2:
-        st.markdown('<div style="padding: 20px 0;">', unsafe_allow_html=True)
-        if st.button("Sair", key="logout"):
+        if st.button("Sair", key="logout", help="Fazer logout"):
             st.session_state.authenticated = False
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # Área principal
-    st.markdown('<div class="portal-main">', unsafe_allow_html=True)
     
-    # Cabeçalho do conteúdo
-    st.markdown("""
-    <div class="content-header">
-        <h1>Seus aplicativos</h1>
-        <p>Acesse as ferramentas de análise de forma rápida e organizada</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Título e descrição
+    st.markdown("### Seus aplicativos")
+    st.markdown('<p class="subtitle">Acesse as ferramentas de análise de forma rápida e organizada</p>', unsafe_allow_html=True)
     
-    # Barra de busca
-    st.markdown('<div class="search-box">', unsafe_allow_html=True)
-    search_query = st.text_input("search", placeholder="🔍 Buscar por nome ou descrição...", label_visibility="collapsed")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Busca
+    search_query = st.text_input("Buscar", placeholder="🔍 Buscar aplicativos...", label_visibility="collapsed")
     
     # Lista de aplicativos
     APPS = [
@@ -539,73 +315,85 @@ def show_portal():
             "name": "TG/ADT Events",
             "desc": "Análise de eventos térmicos em TG/ADT com identificação automática de picos e eventos.",
             "emoji": "🔥",
-            "url": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app/"
+            "url": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app/",
+            "accent": "linear-gradient(180deg, #ef4444, #dc2626)",
         },
         {
-            "name": "Stack Graph",
+            "name": "Stack Graph", 
             "desc": "Criação de gráficos empilhados para visualização de dados multidimensionais.",
             "emoji": "📊",
-            "url": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app/"
+            "url": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app/",
+            "accent": "linear-gradient(180deg, #3b82f6, #1d4ed8)",
         },
         {
             "name": "Rheology App",
             "desc": "Análise completa de dados de reologia com ajuste de modelos viscoelásticos.",
             "emoji": "🔄",
-            "url": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app/"
+            "url": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app/",
+            "accent": "linear-gradient(180deg, #8b5cf6, #7c3aed)",
         },
         {
             "name": "Mechanical Properties",
             "desc": "Cálculo de propriedades mecânicas e análise de tensão-deformação.",
             "emoji": "⚙️",
-            "url": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app/"
+            "url": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app/",
+            "accent": "linear-gradient(180deg, #6b7280, #4b5563)",
         },
         {
             "name": "Baseline Smoothing",
             "desc": "Suavização de linha de base em gráficos com algoritmos avançados.",
             "emoji": "📈",
-            "url": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app/"
+            "url": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app/",
+            "accent": "linear-gradient(180deg, #10b981, #059669)",
         },
         {
             "name": "Isotherms App",
             "desc": "Análise de isotermas de adsorção com modelos de Langmuir e Freundlich.",
             "emoji": "🌡️",
-            "url": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app/"
+            "url": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app/",
+            "accent": "linear-gradient(180deg, #f59e0b, #d97706)",
         },
         {
             "name": "Histograms",
             "desc": "Geração de histogramas customizados com análise estatística completa.",
             "emoji": "📶",
-            "url": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app/"
+            "url": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app/",
+            "accent": "linear-gradient(180deg, #ec4899, #db2777)",
         },
         {
             "name": "Column 3D Line",
             "desc": "Visualização de dados em 3D com projeções e rotação interativa.",
             "emoji": "🌐",
-            "url": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app/"
+            "url": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app/",
+            "accent": "linear-gradient(180deg, #06b6d4, #0891b2)",
         },
         {
             "name": "Crystallinity DSC/XRD",
             "desc": "Cálculo de cristalinidade por DSC e XRD com análise comparativa.",
             "emoji": "💎",
-            "url": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app/"
+            "url": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app/",
+            "accent": "linear-gradient(180deg, #a855f7, #9333ea)",
         },
         {
             "name": "Column 3D",
             "desc": "Visualização de dados em colunas 3D com mapeamento de cores.",
             "emoji": "🏛️",
-            "url": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app/"
+            "url": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app/",
+            "accent": "linear-gradient(180deg, #84cc16, #65a30d)",
         },
         {
             "name": "Kinetic Models",
             "desc": "Ajuste de modelos cinéticos com otimização de parâmetros.",
             "emoji": "⚗️",
-            "url": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app/"
+            "url": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app/",
+            "accent": "linear-gradient(180deg, #f97316, #ea580c)",
         },
         {
             "name": "Python Launcher",
             "desc": "Executor de scripts Python online com ambiente isolado.",
             "emoji": "🐍",
-            "url": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app/"
+            "url": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app/",
+            "accent": "linear-gradient(180deg, #facc15, #eab308)",
         },
     ]
     
@@ -615,24 +403,24 @@ def show_portal():
     
     # Renderizar cards
     if filtered_apps:
-        # Grid de 3 colunas
         cols = st.columns(3, gap="large")
         
         for i, app in enumerate(filtered_apps):
             with cols[i % 3]:
                 st.markdown(f"""
-                <div class="app-card">
-                    <div class="app-icon">{app['emoji']}</div>
+                <div class="card">
+                    <div class="accent" style="background:{app['accent']};"></div>
+                    <div class="icon">{app['emoji']}</div>
                     <h3>{app['name']}</h3>
                     <p>{app['desc']}</p>
-                    <a href="{app['url']}" target="_blank" rel="noopener">Abrir aplicativo →</a>
+                    <div class="actions">
+                        <a class="btn" href="{app['url']}" target="_blank" rel="noopener">Abrir aplicativo →</a>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
     else:
         st.info("🔍 Nenhum aplicativo encontrado para o termo buscado.")
-    
-    st.markdown('</div>', unsafe_allow_html=True)  # Fecha portal-main
-    st.markdown('</div>', unsafe_allow_html=True)  # Fecha portal-container
+
 
 # --- Lógica Principal ---
 
@@ -653,7 +441,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 
