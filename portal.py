@@ -278,19 +278,19 @@ div[data-testid="stAppViewContainer"] {
     color: #888;
 }
 
-/* Barra de busca maior */
-.search-box .stTextInput > div > div > input {
+/* Barra de busca estilizada */
+.stTextInput > div > div > input {
     background: #1a1a1a !important;
     border: 1px solid #2a2a2a !important;
     border-radius: 10px !important;
     color: #e0e0e0 !important;
     padding: 16px 20px !important;
     font-size: 16px !important;
-    margin-bottom: 30px;
+    margin-bottom: 30px !important;
     height: 52px !important;
 }
 
-.search-box .stTextInput > div > div > input::placeholder {
+.stTextInput > div > div > input::placeholder {
     color: #666 !important;
 }
 
