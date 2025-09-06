@@ -506,15 +506,33 @@ def show_portal():
     </div>
     """, unsafe_allow_html=True)
     
-    # Botão de logout no header
-    with st.container():
-        col1, col2 = st.columns([10, 1])
-        with col2:
-            if st.button("Sair", key="logout"):
-                st.session_state.authenticated = False
-                st.rerun()
     
+    # Botão de logout fixo no header (sem ocupar espaço na página)
+    st.markdown(
+        """
+        <style>
+        .logout-fixed { position: fixed; top: 16px; right: 24px; z-index: 1200; }
+        .logout-fixed .stButton > button {
+            background: transparent;
+            border: 1px solid #3a3a3a;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .logout-fixed .stButton > button:hover { background: #222; border-color: #555; }
+        </style>
+        <div class="logout-fixed">
+        """,
+        unsafe_allow_html=True
+    )
+    if st.button("Sair", key="logout"):
+        st.session_state.authenticated = False
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
     # Área principal com scroll
+
     st.markdown('<div class="portal-main">', unsafe_allow_html=True)
     
     # Cabeçalho do conteúdo
@@ -650,6 +668,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
