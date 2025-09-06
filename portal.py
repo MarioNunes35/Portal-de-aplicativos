@@ -76,18 +76,18 @@ html, body, .stApp {
 
 /* Página de Login */
 .login-container {
-    height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    min-height: 95vh;
 }
-.login-card {
+/* Estiliza a coluna central do Streamlit para parecer um card */
+.login-container div[data-testid="stHorizontalBlock"] div[data-testid="column"]:nth-child(2) > div {
     background: #1a1a1a;
     border: 1px solid #2a2a2a;
     border-radius: 12px;
     padding: 40px;
-    width: 100%;
-    max-width: 420px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.8);
 }
 .login-header { text-align: center; margin-bottom: 32px; }
@@ -203,14 +203,17 @@ def show_portal():
     st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
 
     # ---------- HEADER ----------
+    st.markdown('<div class="header-bar">', unsafe_allow_html=True)
     header_cols = st.columns([0.8, 0.2])
     with header_cols[0]:
         st.markdown('<div class="header-title">🚀 Portal de Análises</div>', unsafe_allow_html=True)
     with header_cols[1]:
+        st.markdown('<div class="header-actions">', unsafe_allow_html=True)
         if st.button("Sair", key="logout_button"):
             st.session_state.authenticated = False
             st.rerun()
-    st.markdown('<div class="header-bar-placeholder" style="height: 1px;"></div>', unsafe_allow_html=True) # Workaround para espaçamento
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ---------- CONTEÚDO DO PORTAL ----------
     st.markdown('<div class="portal-content">', unsafe_allow_html=True)
@@ -258,12 +261,16 @@ def show_portal():
 # --- Página de Login ---
 
 def show_login_page():
-    """Exibe a página de login com o novo design."""
+    """Exibe a página de login com o novo design e posicionamento corrigido."""
     st.markdown(CLAUDE_STYLE_CSS, unsafe_allow_html=True)
+    
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    
+    # Colunas para centralizar o card de login na tela
+    _, center_col, _ = st.columns([1, 1.5, 1])
 
-    with st.container():
-        st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    with center_col:
+        # O CSS irá estilizar esta coluna para que pareça um card
         st.markdown('<div class="login-header"><h1 class="login-title">🚀 Acesso ao Portal</h1><p class="login-subtitle">Entre com suas credenciais para continuar</p></div>', unsafe_allow_html=True)
         
         st.markdown('<div class="form-group"><span class="form-label">Usuário</span>', unsafe_allow_html=True)
@@ -280,10 +287,9 @@ def show_login_page():
                 st.rerun()
             else:
                 st.error("Usuário ou senha inválidos.")
-        
-        st.markdown('</div>', unsafe_allow_html=True) # Fim do login-card
     
-    st.markdown('</div>', unsafe_allow_html=True) # Fim do login-container
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 # --- Lógica Principal ---
 
@@ -295,11 +301,7 @@ def main():
         st.session_state.authenticated = False
 
     if st.session_state.authenticated:
-        # Layout do portal principal
-        # Precisa de uma pequena "gambiarra" para o header funcionar bem
-        st.markdown('<div class="header-bar">', unsafe_allow_html=True)
         show_portal()
-        st.markdown('</div>', unsafe_allow_html=True)
     else:
         show_login_page()
 
