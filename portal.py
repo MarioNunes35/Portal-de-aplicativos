@@ -27,7 +27,7 @@ def check_oidc_available():
             return False, None, ["st.login não está disponível nesta versão do Streamlit"]
         
         # 2) Já logado?
-        if hasattr(st, "user") and getattr(st.user, "is_logged_in", False):
+        if hasattr(st, "user") and getattr(st.user, 'is_logged_in', False):
             return True, None, []
         
         # 3) Resolver provider a partir de secrets
@@ -39,6 +39,7 @@ def check_oidc_available():
         return True, provider_arg, []
     except Exception as e:
         return False, None, [f"Erro ao verificar OIDC: {str(e)}"]
+
 def resolve_auth_provider():
     """Inspeciona st.secrets e tenta descobrir onde estão as chaves de OIDC/OAuth.
     Suporta:
@@ -93,6 +94,10 @@ def resolve_auth_provider():
     if not problems:
         problems.append("Nenhuma configuração válida encontrada. Preencha [auth] e/ou [auth.<nome>] com as chaves necessárias.")
     return None, problems
+
+# ===========================
+# Fallback Authentication
+# ===========================
 def simple_auth(username: str, password: str) -> tuple[bool, str]:
     """Autenticação simples como fallback"""
     # Busca credenciais nos secrets
@@ -104,7 +109,7 @@ def simple_auth(username: str, password: str) -> tuple[bool, str]:
         fallback_users = {
             "admin": {
                 "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
-                "email": "admin@example.com"
+                "email": "admin@portal.local",
             }
         }
     
@@ -125,9 +130,8 @@ def get_allowlists():
     domains = { (d or "").strip().lower() for d in auth.get("allowed_domains", []) }
     return emails, domains
 
-def is_allowed(email: str, emails, domains) -> bool:
-    if not email:
-        return False
+def is_allowed(email: str, emails: set[str], domains: set[str]):
+    email = (email or "").strip().lower()
     # Se não há listas configuradas, permite todos (para facilitar desenvolvimento)
     if not emails and not domains:
         return True
@@ -148,26 +152,23 @@ def has_role(email: str, role: str | None):
 CSS = """
 <style>
 .login-wrap {
-  max-width: 620px;
-  margin: 5vh auto 3rem auto;
-  padding: 2.2rem 2rem 1.6rem 2rem;
-  border-radius: 20px;
-  background: rgba(22, 22, 26, 0.85);
-  border: 1px solid rgba(255,255,255,0.06);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    max-width: 680px; margin: 3rem auto 1.5rem auto;
+    padding: 1.25rem 1.25rem 0.5rem 1.25rem;
+    background: var(--background-color);
+    border-radius: 16px;
+    border: 1px solid rgba(49, 51, 63, 0.2);
 }
-.login-title { font-size: 2.0rem; font-weight: 800; margin-bottom: 0.25rem; }
-.login-sub { opacity: .85; margin: 0 0 1.4rem 0; }
-label, .stCheckbox label { font-weight: 600; }
-.small-note { font-size: 0.85rem; opacity: .70; }
-.google-btn > button { width: 100%; height: 44px; font-weight: 700; }
-.google-btn > button:before {
-  content: " "; display: inline-block; width: 18px; height: 18px; margin-right: 8px; vertical-align: -3px;
-  background-image: url('https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg'); background-size: cover;
+.login-title {
+    font-size: 1.25rem; font-weight: 700; margin-bottom: 0.25rem;
+}
+.login-sub { font-size: 0.95rem; opacity: 0.8; margin-bottom: 0.5rem; }
+.google-btn { margin-top: 0.25rem; }
+
+.app-grid {
+    display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr);
 }
 .app-card {
-    border: 1px solid var(--secondary-background-color);
-    border-radius: 0.75rem;
+    grid-column: span 4;
     padding: 0.9rem 0.9rem 0.6rem 0.9rem;
     height: 100%;
     background: var(--background-color);
@@ -177,6 +178,45 @@ label, .stCheckbox label { font-weight: 600; }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
+
+# ===== Compat helpers / Debug =====
+import sys, platform
+from datetime import datetime
+
+def link_btn(label: str, url: str):
+    """Compat: usa st.link_button se existir; senão, mostra um link padrão."""
+    if hasattr(st, "link_button"):
+        st.link_button(label, url, type="primary", use_container_width=True)
+    else:
+        st.markdown(f"[**{label}**]({url})")
+
+
+def show_diag(note: str | None = None, error: Exception | None = None):
+    """Painel compacto de diagnóstico para entender 500 internos."""
+    with st.expander("🛠 Diagnóstico (local)", expanded=False):
+        if note:
+            st.info(note)
+        if error:
+            st.exception(error)
+        try:
+            provider_arg, provider_problems = resolve_auth_provider()
+        except Exception as e:
+            provider_arg, provider_problems = None, [f"resolve_auth_provider falhou: {e}"]
+        info = {
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "python": sys.version.split()[0],
+            "platform": platform.platform(),
+            "streamlit_version": getattr(st, "__version__", "unknown"),
+            "st_user_present": bool(getattr(st, "user", None)),
+            "st_user_is_logged": bool(getattr(getattr(st, "user", object()), "is_logged_in", False)),
+            "st_user_email": (getattr(getattr(st, "user", object()), "email", "") or ""),
+            "provider_arg": provider_arg,
+            "provider_problems": provider_problems,
+            "secrets_keys": sorted(list(st.secrets.keys())),
+            "has_[auth]": bool(st.secrets.get("auth")),
+            "has_[oidc]": bool(st.secrets.get("oidc")),
+        }
+        st.json(info)
 
 # ===========================
 # Login Functions
@@ -202,7 +242,7 @@ def render_login_card():
         
         col1, col2 = st.columns(2)
         with col1:
-            st.checkbox("Lembrar-me", value=True, disabled=True, key="dummy_remember")
+            st.checkbox("Lembrar de mim", value=True, disabled=True)
         with col2:
             st.checkbox("Mostrar senha", value=False, disabled=True, key="dummy_show")
         
@@ -229,17 +269,19 @@ def render_login_card():
                 for p in problems:
                     st.markdown(f"- {p}")
                 
-                # Se o problema é falta de Authlib, mostra instruções
-                if any("Authlib" in p for p in problems):
-                    st.info("""
+                # Dica rápida de dependência (Authlib)
+                st.info(
+                    """
                     **Para habilitar login com Google:**
-                    1. Adicione ao arquivo `requirements.txt`:
+                    1. Em `requirements.txt` adicione/garanta:
                        ```
-                       Authlib>=1.3.2
+                       streamlit>=1.42
+                       authlib>=1.3.2
                        ```
-                    2. Faça o redeploy do app
-                    3. Configure os secrets OIDC conforme documentação
-                    """)
+                    2. Configure `Secrets` com **[auth]** e (opcional) **[auth.<nome>]**.
+                    3. No Google Cloud, cadastre o `redirect_uri` que termina com **/oauth2callback**.
+                    """
+                )
         
         # Formulário de login simples
         with st.form("login_form"):
@@ -247,7 +289,7 @@ def render_login_card():
             password = st.text_input("Senha", type="password", placeholder="Digite sua senha")
             col1, col2 = st.columns(2)
             with col1:
-                remember = st.checkbox("Lembrar-me", value=True)
+                st.checkbox("Lembrar de mim", value=True)
             with col2:
                 submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
             
@@ -266,27 +308,9 @@ def render_login_card():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ===========================
-# App catalog
+# Conteúdo protegido (após login)
 # ===========================
-APPS = [
-    {"name": "TG/ADT Events", "url": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app"},
-    {"name": "Stack Graph", "url": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app"},
-    {"name": "Rheology App", "url": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app"},
-    {"name": "Mechanical Properties", "url": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app"},
-    {"name": "Baseline Smoothing", "url": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app"},
-    {"name": "Isotherms App", "url": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app"},
-    {"name": "Histograms", "url": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app"},
-    {"name": "Column 3D Line", "url": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app"},
-    {"name": "Crystallinity DSC/XRD", "url": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app"},
-    {"name": "Column 3D", "url": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app"},
-    {"name": "Kinetic Models", "url": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app"},
-    {"name": "Python Launcher", "url": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app"},
-]
-
-# ===========================
-# Main Flow
-# ===========================
-# Determina se o usuário está autenticado
+# Determina se está logado
 is_logged_in = False
 user_email = None
 
@@ -338,38 +362,44 @@ with st.sidebar:
             st.session_state.user_email = None
             st.rerun()
 
-# Título e busca
-st.title("📚 Apps disponíveis")
-q = st.text_input("Buscar apps por nome:", placeholder="Ex.: histogram, 3D, rheology...").strip().lower()
+st.title("📊 Portal de Análises")
+st.write("Selecione um aplicativo abaixo para abrir em uma nova aba:")
 
-def matches(app, q):
-    if not q:
-        return True
-    return q in app["name"].lower() or q in app["url"].lower()
+# Lista de apps (exemplo)
+apps = [
+    {"name": "Barras Agrupadas", "url": "https://barras-agrupado.streamlit.app"},
+    {"name": "TGA & DTG", "url": "https://tga-dtg.streamlit.app"},
+    {"name": "Raman Deconvolution", "url": "https://raman-deconv.streamlit.app"},
+    {"name": "Linha Base & Suavização", "url": "https://linha-base.streamlit.app"},
+    {"name": "Histogramas", "url": "https://histogramas.streamlit.app"},
+    {"name": "Colunas 3D", "url": "https://colunas-3d.streamlit.app"},
+]
 
-apps = [a for a in APPS if matches(a, q)]
-st.caption(f"{len(apps)} app(s) encontrado(s).")
-
-# Grid de apps
-N_COLS = 3
-cols = st.columns(N_COLS)
-
-for i, app in enumerate(apps):
-    with cols[i % N_COLS]:
-        st.markdown('<div class="app-card">', unsafe_allow_html=True)
-        st.subheader(app["name"])
-        st.markdown(f'<div class="app-url">{app["url"]}</div>', unsafe_allow_html=True)
-        st.link_button("Abrir app", app["url"], type="primary", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+# Grid responsivo simples
+try:
+    N_COLS = 3
+    cols = st.columns(N_COLS)
+    for i, app in enumerate(apps):
+        with cols[i % N_COLS]:
+            st.markdown('<div class="app-card">', unsafe_allow_html=True)
+            st.subheader(app["name"])
+            st.markdown(f'<div class="app-url">{app["url"]}</div>', unsafe_allow_html=True)
+            link_btn("Abrir app", app["url"])
+            st.markdown("</div>", unsafe_allow_html=True)
+except Exception as e:
+    st.error("Falha ao renderizar a grade de aplicativos.")
+    show_diag("Exceção ao montar o grid de apps", e)
 
 # Ajuda
 st.divider()
 with st.expander("ℹ️ Ajuda"):
-    st.markdown("""
-    - Caso um app peça login novamente, é normal: cada app também valida acesso.
-    - Se aparecer **Acesso não autorizado**, peça liberação ao administrador.
-    - Problemas com a conta Google? Tente sair e entrar novamente em `accounts.google.com`.
-    """)
+    st.markdown(
+        """
+        - Caso um app peça login novamente, é normal: cada app também valida acesso.
+        - Se aparecer **Acesso não autorizado**, peça liberação ao administrador.
+        - Problemas com a conta Google? Tente sair e entrar novamente em `accounts.google.com`.
+        """
+    )
 
 
 
