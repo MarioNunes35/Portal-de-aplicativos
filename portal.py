@@ -1,424 +1,406 @@
 import streamlit as st
-from urllib.parse import urlparse
-import hashlib
-import hmac
-from pathlib import Path
-import json, csv
+from typing import Dict, List, Optional
 
-st.set_page_config(page_title="Portal de Análises", page_icon="🚀", layout="wide")
+# Configuração da página
+st.set_page_config(
+    page_title="Portal Unificado",
+    page_icon="🚀",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
-# ===========================
-# Session State Management
-# ===========================
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-if 'user_email' not in st.session_state:
-    st.session_state.user_email = None
+# Lista de aplicativos
+APPS: List[Dict[str, str]] = [
+    {
+        "title": "TG/ADT Events",
+        "desc": "Análise de eventos (TG/ADT) e extração de parâmetros.",
+        "href": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app/"
+    },
+    {
+        "title": "Stack Graph",
+        "desc": "Gráficos empilhados para dados multidimensionais.",
+        "href": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app/"
+    },
+    {
+        "title": "Rheology App",
+        "desc": "Análise de reologia e ajuste de modelos.",
+        "href": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app/"
+    },
+    {
+        "title": "Mechanical Properties",
+        "desc": "Propriedades mecânicas e curvas tensão—deformação.",
+        "href": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app/"
+    },
+    {
+        "title": "Baseline Smoothing",
+        "desc": "Suavização e correção de linha de base em sinais.",
+        "href": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app/"
+    },
+    {
+        "title": "Isotherms App",
+        "desc": "Isotermas de adsorção (vários modelos).",
+        "href": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app/"
+    },
+    {
+        "title": "Histograms",
+        "desc": "Geração e análise de histogramas.",
+        "href": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app/"
+    },
+    {
+        "title": "Column 3D Line",
+        "desc": "Coluna 3D com linha sobreposta.",
+        "href": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app/"
+    },
+    {
+        "title": "Crystallinity DSC/XRD",
+        "desc": "Cristalinidade por DSC/XRD.",
+        "href": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app/"
+    },
+    {
+        "title": "Column 3D",
+        "desc": "Gráficos de barras em 3D (colunas).",
+        "href": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app/"
+    },
+    {
+        "title": "Kinetic Models",
+        "desc": "Modelagem cinética com múltiplos modelos.",
+        "href": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app/"
+    },
+    {
+        "title": "Python Launcher",
+        "desc": "Launcher utilitário para scripts Python.",
+        "href": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app/"
+    }
+]
 
-# ===========================
-# OIDC preflight (checks Secrets before calling st.login)
-# ===========================
-def check_oidc_available():
-    """Verifica se OIDC está disponível e configurado. 
-    Retorna (available: bool, provider_arg: str|None, problems: list[str]).
-    """
-    problems = []
+# =============================================================================
+# FUNÇÕES DE AUTENTICAÇÃO
+# =============================================================================
+
+def get_user_info():
+    """Obtém informações do usuário logado"""
     try:
-        # 1) st.login disponível?
-        if not hasattr(st, "login"):
-            return False, None, ["st.login não está disponível nesta versão do Streamlit"]
+        # Tenta acessar o objeto user do Streamlit
+        user = getattr(getattr(st, "context", None), "user", None)
+        if not user:
+            user = getattr(st, "user", None)
+        return user
+    except:
+        return None
+
+def get_user_email() -> str:
+    """Extrai o email do usuário logado"""
+    user = get_user_info()
+    if not user:
+        return ""
+    
+    # Tenta diferentes atributos onde o email pode estar
+    for attr in ("email", "primaryEmail", "preferred_username"):
+        email = getattr(user, attr, None)
+        if email:
+            return str(email)
+    
+    # Se não encontrou email nos atributos, tenta converter o objeto user diretamente
+    try:
+        user_str = str(user).strip()
+        if "@" in user_str:
+            return user_str
+    except:
+        pass
+    
+    return ""
+
+def is_authenticated() -> bool:
+    """Verifica se o usuário está autenticado"""
+    return bool(get_user_email())
+
+def check_google_secrets() -> bool:
+    """Verifica se as credenciais do Google estão configuradas"""
+    try:
+        secrets = dict(st.secrets)
         
-        # 2) Já logado?
-        if hasattr(st, "user") and getattr(st.user, 'is_logged_in', False):
-            return True, None, []
+        # Verifica formato [auth.google]
+        if "auth" in secrets and "google" in secrets["auth"]:
+            google_config = secrets["auth"]["google"]
+            required_keys = ["client_id", "client_secret"]
+            return all(google_config.get(key) for key in required_keys)
         
-        # 3) Resolver provider a partir de secrets
-        provider_arg, provider_problems = resolve_auth_provider()
-        problems.extend(provider_problems)
-        if problems:
-            return False, provider_arg, problems
+        # Verifica formato [auth] com provider="google"
+        if "auth" in secrets:
+            auth_config = secrets["auth"]
+            if auth_config.get("provider", "").lower() == "google":
+                required_keys = ["client_id", "client_secret"]
+                return all(auth_config.get(key) for key in required_keys)
         
-        return True, provider_arg, []
-    except Exception as e:
-        return False, None, [f"Erro ao verificar OIDC: {str(e)}"]
+        return False
+    except:
+        return False
 
-def resolve_auth_provider():
-    """Inspeciona st.secrets e tenta descobrir onde estão as chaves de OIDC/OAuth."""
-    problems = []
-    auth_root = st.secrets.get("auth", {})
-    # normalizar discovery_url -> server_metadata_url quando aparecer
-    def norm_provider(cfg: dict) -> dict:
-        cfg = dict(cfg or {})
-        if "server_metadata_url" not in cfg and "discovery_url" in cfg:
-            cfg["server_metadata_url"] = cfg.get("discovery_url")
-        return cfg
+def test_redirect_uri():
+    """Função para testar diferentes redirect URIs"""
+    st.warning("🧪 **Modo de Teste de Redirect URI**")
     
-    # 1) Caso A: tudo em [auth]
-    root_cfg = norm_provider(auth_root)
-    root_has_provider = all(str(root_cfg.get(k, "")).strip() for k in ("client_id","client_secret","server_metadata_url"))
-    root_has_root = all(str(root_cfg.get(k, "")).strip() for k in ("redirect_uri","cookie_secret"))
-    if root_has_provider and root_has_root:
-        return None, []
+    # Detecta a URL base
+    try:
+        app_url = f"https://{st.context.headers.get('host', 'app-unificadopy-j9wgzbt2sqm5pgaeqzxyme.streamlit.app')}"
+    except:
+        app_url = "https://app-unificadopy-j9wgzbt2sqm5pgaeqzxyme.streamlit.app"
     
-    # 2) Caso B: provider nomeado dentro de [auth.<nome>]
-    named_candidate = None
-    for name, cfg in auth_root.items():
-        if isinstance(cfg, dict):
-            cfg = norm_provider(cfg)
-            if all(str(cfg.get(k, "")).strip() for k in ("client_id","client_secret","server_metadata_url")):
-                named_candidate = name
-                break
-    if named_candidate:
-        if not all(str(auth_root.get(k, "")).strip() for k in ("redirect_uri","cookie_secret")):
-            miss = [k for k in ("redirect_uri","cookie_secret") if not str(auth_root.get(k, "")).strip()]
-            problems.append("Faltando em [auth]: " + ", ".join(miss))
-        return str(named_candidate), problems
+    st.write(f"**URL base detectada:** {app_url}")
     
-    # 3) Caso C: bloco legado [oidc]
-    legacy = norm_provider(st.secrets.get("oidc", {}))
-    if legacy:
-        req = ["client_id","client_secret","redirect_uri","server_metadata_url","cookie_secret"]
-        miss = [k for k in req if not str(legacy.get(k, "")).strip()]
-        if miss:
-            problems.append("Faltando em [oidc]: " + ", ".join(miss))
-        else:
-            return "oidc", []
-    
-    # 4) Não encontrado
-    if not problems:
-        problems.append("Nenhuma configuração válida encontrada. Preencha [auth] e/ou [auth.<nome>] com as chaves necessárias.")
-    return None, problems
-
-# ===========================
-# Fallback Authentication
-# ===========================
-def simple_auth(username: str, password: str) -> tuple[bool, str]:
-    """Autenticação simples como fallback"""
-    fallback_users = st.secrets.get("fallback_auth", {}).get("users", {})
-    
-    if not fallback_users:
-        fallback_users = {
-            "admin": {
-                "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
-                "email": "admin@portal.local",
-            }
-        }
-    
-    if username in fallback_users:
-        user_data = fallback_users[username]
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        if password_hash == user_data.get("password_hash"):
-            return True, user_data.get("email", f"{username}@portal.local")
-    
-    return False, ""
-
-# ===========================
-# Allowlist / Roles
-# ===========================
-def get_allowlists():
-    """
-    Carrega as listas de permissão dos secrets de forma segura.
-    Garante que os valores sejam listas para evitar erros de iteração.
-    """
-    auth = st.secrets.get("auth", {})
-    
-    # MODIFICADO: Garante que os valores sejam listas para evitar erros
-    allowed_emails_list = auth.get("allowed_emails", [])
-    if not isinstance(allowed_emails_list, list):
-        allowed_emails_list = [] # Usa lista vazia se o formato for inválido
-
-    allowed_domains_list = auth.get("allowed_domains", [])
-    if not isinstance(allowed_domains_list, list):
-        allowed_domains_list = [] # Usa lista vazia se o formato for inválido
-
-    emails = { (e or "").strip().lower() for e in allowed_emails_list }
-    domains = { (d or "").strip().lower() for d in allowed_domains_list }
-    return emails, domains
-
-def is_allowed(email: str, emails: set[str], domains: set[str]):
-    email = (email or "").strip().lower()
-    if not emails and not domains:
-        return True
-    if email in emails:
-        return True
-    return any(email.endswith(f"@{d}") for d in domains)
-
-def has_role(email: str, role: str | None):
-    if role is None:
-        return True
-    roles = st.secrets.get("roles", {})
-    permitted = { (e or "").strip().lower() for e in roles.get(role, []) }
-    return email in permitted
-
-# ===========================
-# Styles
-# ===========================
-CSS = """
-<style>
-.login-wrap {
-    max-width: 680px; margin: 3rem auto 1.5rem auto;
-    padding: 1.25rem 1.25rem 0.5rem 1.25rem;
-    background: var(--background-color);
-    border-radius: 16px;
-    border: 1px solid rgba(49, 51, 63, 0.2);
-}
-.login-title {
-    font-size: 1.25rem; font-weight: 700; margin-bottom: 0.25rem;
-}
-.login-sub { font-size: 0.95rem; opacity: 0.8; margin-bottom: 1rem; }
-.google-btn { margin-top: 0.25rem; }
-
-.app-grid {
-    display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr);
-}
-.app-card {
-    grid-column: span 4;
-    padding: 0.9rem 0.9rem 0.6rem 0.9rem;
-    height: 100%;
-    background: var(--background-color);
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.06);
-}
-.app-url { font-size: 0.8rem; opacity: 0.7; margin-top: 0.25rem; word-break: break-all; }
-</style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
-
-# ===========================
-# Apps loader (dinâmico)
-# ===========================
-def _coerce_items(seq):
-    out = []
-    for it in seq:
-        if not isinstance(it, dict):
-            continue
-        name = (it.get("name") or it.get("title") or "").strip()
-        url = (it.get("url") or it.get("href") or "").strip()
-        icon = (it.get("icon") or it.get("emoji") or "↗️").strip() or "↗️"
-        if name and url:
-            out.append({"name": name, "url": url, "icon": icon})
-    seen = set()
-    dedup = []
-    for it in out:
-        if it["name"] in seen:
-            continue
-        seen.add(it["name"])
-        dedup.append(it)
-    return dedup
-
-def load_apps():
-    apps_from_secrets = st.secrets.get("apps", None)
-    if isinstance(apps_from_secrets, list):
-        coerced = _coerce_items(apps_from_secrets)
-        if coerced:
-            return coerced, "secrets:[[apps]]"
-    elif isinstance(apps_from_secrets, dict):
-        items = apps_from_secrets.get("items")
-        if isinstance(items, list):
-            coerced = _coerce_items(items)
-            if coerced:
-                return coerced, "secrets:[apps].items"
-    
-    p_json = Path("apps.json")
-    if p_json.exists():
-        try:
-            data = json.loads(p_json.read_text(encoding="utf-8"))
-            if isinstance(data, list):
-                coerced = _coerce_items(data)
-                if coerced:
-                    return coerced, "apps.json"
-            elif isinstance(data, dict) and "items" in data:
-                coerced = _coerce_items(data.get("items", []))
-                if coerced:
-                    return coerced, "apps.json:items"
-        except Exception as e:
-            st.warning(f"apps.json inválido: {e}")
-
-    p_csv = Path("apps.csv")
-    if p_csv.exists():
-        try:
-            rows = []
-            with p_csv.open("r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for r in reader:
-                    rows.append(r)
-            coerced = _coerce_items(rows)
-            if coerced:
-                return coerced, "apps.csv"
-        except Exception as e:
-            st.warning(f"apps.csv inválido: {e}")
-
-    fallback = [
-        {"name": "Barras Agrupadas", "url": "https://barras-agrupado.streamlit.app", "icon": "📊"},
-        {"name": "TGA & DTG", "url": "https://tga-dtg.streamlit.app", "icon": "🔥"},
-        {"name": "Raman Deconvolution", "url": "https://raman-deconv.streamlit.app", "icon": "📈"},
-        {"name": "Linha Base & Suavização", "url": "https://linha-base.streamlit.app", "icon": "🧰"},
-        {"name": "Histogramas", "url": "https://histogramas.streamlit.app", "icon": "📉"},
-        {"name": "Colunas 3D", "url": "https://colunas-3d.streamlit.app", "icon": "🧱"},
+    # Lista de URIs para testar
+    test_uris = [
+        "_stcore/oauth2callback",
+        "_stcore/auth/callback", 
+        "auth/callback",
+        "oauth2callback",
+        "_streamlit/auth/callback"
     ]
-    return fallback, "fallback"
+    
+    st.write("**Selecione uma URI para testar:**")
+    
+    for i, uri_path in enumerate(test_uris):
+        full_uri = f"{app_url}/{uri_path}"
+        if st.button(f"Testar: {full_uri}", key=f"test_{i}"):
+            # Temporariamente modifica os secrets para teste
+            if "auth" in st.secrets and "google" in st.secrets["auth"]:
+                st.session_state.test_redirect_uri = full_uri
+                st.success(f"✅ URI de teste selecionada: {full_uri}")
+                st.write("**Agora configure esta URI nos seus secrets:**")
+                st.code(f'''
+[auth]
+cookie_secret = "sua_chave_secreta"
 
-# ===========================
-# Login Functions
-# ===========================
-def render_login_card():
-    """Renderiza o card de login com suporte a OIDC ou fallback"""
-    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="login-title">🚀 Portal de Análises</div>', unsafe_allow_html=True)
+[auth.google]
+client_id = "{st.secrets["auth"]["google"].get("client_id", "SEU_CLIENT_ID")}"
+client_secret = "{st.secrets["auth"]["google"].get("client_secret", "SEU_CLIENT_SECRET")}"
+redirect_uri = "{full_uri}"
+''', language="toml")
+                st.write("**E adicione esta mesma URI no Google Cloud Console!**")
     
-    oidc_available, provider_arg, problems = check_oidc_available()
+    return st.session_state.get('test_redirect_uri')
+
+def show_auth_config_help():
+    """Mostra as instruções de configuração dos secrets"""
+    st.error("🔐 Configuração de autenticação necessária")
     
-    if oidc_available and hasattr(st, 'login'):
-        # MODIFICADO: Layout simplificado apenas com o botão do Google
-        st.markdown('<div class="login-sub">Entre com sua conta Google para continuar</div>', unsafe_allow_html=True)
-        
-        with st.container():
-            st.markdown('<div class="google-btn">', unsafe_allow_html=True)
-            if st.button("Entrar com Google", type="primary", use_container_width=True):
-                try:
-                    st.login(provider_arg) if provider_arg else st.login()
-                except Exception as e:
-                    st.error(f"Erro ao iniciar login Google: {str(e)}")
-            st.markdown('</div>', unsafe_allow_html=True)
+    # Primeiro, oferece o modo de teste
+    st.info("💡 **Vamos descobrir a URI correta para sua aplicação!**")
+    
+    if st.button("🧪 Ativar Modo de Teste de Redirect URI", type="primary"):
+        st.session_state.show_test_mode = True
+    
+    if st.session_state.get('show_test_mode', False):
+        test_redirect_uri()
+        return
+    
+    # Detecta a URL atual da aplicação
+    try:
+        app_url = f"https://{st.context.headers.get('host', 'app-unificadopy-j9wgzbt2sqm5pgaeqzxyme.streamlit.app')}"
+    except:
+        app_url = "https://app-unificadopy-j9wgzbt2sqm5pgaeqzxyme.streamlit.app"
+    
+    # Múltiplas possibilidades de redirect URI
+    possible_uris = [
+        f"{app_url}/_stcore/oauth2callback",
+        f"{app_url}/_stcore/auth/callback",
+        f"{app_url}/auth/callback",
+        f"{app_url}/oauth2callback"
+    ]
+    
+    st.markdown("""
+    Para usar este portal, você precisa configurar a autenticação Google nos **Secrets** do Streamlit Cloud.
+    
+    ### 📋 Configuração Manual:
+    
+    **1. Configure os Secrets no Streamlit Cloud:**
+    """)
+    
+    st.code(f"""
+[auth]
+cookie_secret = "SUA_CHAVE_SECRETA_LONGA_E_ALEATORIA_AQUI"
+
+[auth.google]
+client_id = "SEU_GOOGLE_CLIENT_ID"
+client_secret = "SEU_GOOGLE_CLIENT_SECRET"
+redirect_uri = "{possible_uris[0]}"
+""", language="toml")
+    
+    st.markdown("""
+    **2. No Google Cloud Console - Adicione TODAS estas URLs aos "Authorized redirect URIs":**
+    
+    (Adicione todas para garantir compatibilidade)
+    """)
+    
+    for uri in possible_uris:
+        st.code(uri, language="text")
+    
+    st.markdown("""
+    **3. Passos no Google Cloud Console:**
+    - Acesse o [Google Cloud Console](https://console.cloud.google.com/)
+    - Crie um projeto ou selecione um existente
+    - Habilite a "Google Sign-In API" ou "Identity Platform"
+    - Vá em "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
+    - Configure como "Web application"
+    - Cole TODAS as URLs acima em "Authorized redirect URIs"
+    
+    **4. Gere uma chave secreta para cookies:**
+    """)
+    
+    st.code("""
+import secrets
+print(secrets.token_urlsafe(32))
+""", language="python")
+    
+    st.warning("⚠️ **IMPORTANTE**: Adicione TODAS as URLs de redirect no Google Cloud Console para garantir que funcione!")
+    
+    with st.expander("🔍 Debug dos Secrets (apenas estrutura)"):
+        try:
+            secrets_keys = list(st.secrets.keys())
+            debug_info = {"sections_found": secrets_keys}
             
+            if "auth" in st.secrets:
+                debug_info["auth_keys"] = list(st.secrets["auth"].keys())
+                if "google" in st.secrets["auth"]:
+                    debug_info["auth_google_keys"] = list(st.secrets["auth"]["google"].keys())
+            
+            st.json(debug_info)
+        except Exception as e:
+            st.write(f"Erro ao ler secrets: {str(e)}")
+    
+    with st.expander("🌐 URLs de Redirect Detectadas"):
+        st.write("**URL da aplicação detectada:**", app_url)
+        st.write("**Possíveis redirect URIs:**")
+        for i, uri in enumerate(possible_uris):
+            st.write(f"{i+1}. `{uri}`")
+
+def handle_authentication():
+    """Gerencia o processo de autenticação"""
+    # Verifica se as credenciais estão configuradas
+    if not check_google_secrets():
+        show_auth_config_help()
+        st.stop()
+    
+    # Se não está autenticado, inicia o processo de login
+    if not is_authenticated():
+        st.info("🔐 **Autenticação necessária**")
+        st.markdown("Clique no botão abaixo para fazer login com sua conta Google.")
+        
+        try:
+            st.login("google")
+            st.stop()
+        except Exception as e:
+            st.error(f"Erro no processo de login: {str(e)}")
+            st.markdown("**Possíveis soluções:**")
+            st.markdown("- Verifique se as credenciais Google estão corretas nos Secrets")
+            st.markdown("- Confirme se a URL de redirect está configurada no Google Cloud Console")
+            st.stop()
+
+def show_user_info():
+    """Mostra informações do usuário logado"""
+    email = get_user_email()
+    if email:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.success(f"🔐 Conectado como: **{email}**")
+        with col2:
+            if st.button("🚪 Logout", type="secondary"):
+                # Limpa a sessão (método pode variar dependendo da versão do Streamlit)
+                st.rerun()
+
+# =============================================================================
+# INTERFACE DO USUÁRIO
+# =============================================================================
+
+def render_apps_grid(apps: List[Dict[str, str]]):
+    """Renderiza a grade de aplicativos com busca"""
+    
+    # Campo de busca
+    search_query = st.text_input(
+        "🔎 Buscar aplicativo", 
+        placeholder="Digite parte do nome ou descrição...",
+        help="Busque por nome ou descrição do aplicativo"
+    ).strip().lower()
+    
+    # Filtrar apps baseado na busca
+    if search_query:
+        filtered_apps = [
+            app for app in apps 
+            if search_query in app["title"].lower() or search_query in app["desc"].lower()
+        ]
     else:
-        # Fallback para autenticação simples
-        st.markdown('<div class="login-sub">Entre com suas credenciais</div>', unsafe_allow_html=True)
-        
-        if problems:
-            with st.expander("⚠️ Configuração OIDC", expanded=False):
-                st.warning("Login Google não disponível. Usando autenticação alternativa.")
-                for p in problems:
-                    st.markdown(f"- {p}")
-        
-        with st.form("login_form"):
-            username = st.text_input("Usuário", placeholder="Digite seu usuário")
-            password = st.text_input("Senha", type="password", placeholder="Digite sua senha")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.checkbox("Lembrar de mim", value=True)
-            with col2:
-                submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
-            
-            if submitted:
-                if username and password:
-                    success, email = simple_auth(username, password)
-                    if success:
-                        st.session_state.authenticated = True
-                        st.session_state.user_email = email
-                        st.rerun()
-                    else:
-                        st.error("Usuário ou senha incorretos")
-                else:
-                    st.error("Por favor, preencha todos os campos")
+        filtered_apps = apps
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Mostrar quantidade de resultados
+    if search_query:
+        st.write(f"📊 Encontrados **{len(filtered_apps)}** de **{len(apps)}** aplicativos")
+    else:
+        st.write(f"📊 Total de **{len(apps)}** aplicativos disponíveis")
+    
+    if not filtered_apps:
+        st.warning("🔍 Nenhum aplicativo encontrado com esse termo de busca.")
+        return
+    
+    # Grade de aplicativos (3 colunas)
+    cols = st.columns(3)
+    
+    for i, app in enumerate(filtered_apps):
+        with cols[i % 3]:
+            with st.container(border=True):
+                st.subheader(f"🔧 {app['title']}")
+                st.write(app["desc"])
+                st.link_button(
+                    "🚀 Abrir Aplicativo", 
+                    app["href"], 
+                    use_container_width=True,
+                    type="primary"
+                )
 
-# ===========================
-# Main Application Logic
-# ===========================
-# Determina se está logado
-is_logged_in = False
-user_email = None
+def main():
+    # Gerencia autenticação
+    handle_authentication()
+    
+    # Cabeçalho
+    st.title("🚀 Portal Unificado de Aplicativos")
+    st.markdown("**Central de acesso aos aplicativos de análise de dados**")
+    
+    # Mostra informações do usuário
+    show_user_info()
+    
+    st.divider()
+    
+    # Grade de aplicativos
+    render_apps_grid(APPS)
+    
+    # Rodapé com informações
+    st.divider()
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        with st.expander("ℹ️ Sobre este Portal"):
+            st.markdown("""
+            Este portal centraliza o acesso a todos os aplicativos de análise de dados disponíveis.
+            
+            **Categorias disponíveis:**
+            - 📊 **Análise de Dados**: TG/ADT Events, Stack Graph, Histograms
+            - 🔬 **Propriedades de Materiais**: Rheology, Mechanical Properties, Crystallinity
+            - 📈 **Modelagem**: Kinetic Models, Isotherms
+            - 🎨 **Visualização**: Column 3D, Baseline Smoothing
+            - 🛠️ **Utilitários**: Python Launcher
+            """)
+    
+    with col2:
+        with st.expander("🔧 Dicas de Uso"):
+            st.markdown("""
+            - Use o campo de **busca** para encontrar apps rapidamente
+            - Todos os links abrem em **nova aba**
+            - Apps são **independentes** entre si
+            - **Login necessário** para acesso aos aplicativos
+            """)
 
-if hasattr(st, 'user') and getattr(st.user, 'is_logged_in', False):
-    is_logged_in = True
-    user_email = (getattr(st.user, 'email', '') or '').lower()
-elif st.session_state.authenticated:
-    is_logged_in = True
-    user_email = st.session_state.user_email
-
-# Se não está logado, mostra a tela de login e para a execução
-if not is_logged_in:
-    render_login_card()
-    st.stop()
-
-# A partir daqui, o usuário está logado.
-# Verifica permissões de acesso
-emails, domains = get_allowlists()
-if not is_allowed(user_email, emails, domains):
-    st.error("Acesso não autorizado. Seu e-mail não está na lista de permissões.")
-    if st.button("Sair"):
-        if hasattr(st, 'logout'):
-            st.logout()
-        else:
-            st.session_state.authenticated = False
-            st.session_state.user_email = None
-            st.rerun()
-    st.stop()
-
-# Verifica roles (opcional)
-required_role = None
-if not has_role(user_email, required_role):
-    st.error("Você não tem a permissão necessária para acessar esta seção.")
-    st.stop()
-
-# ===========================
-# Interface Principal (Conteúdo Protegido)
-# ===========================
-with st.sidebar:
-    st.caption(f"Logado como: {user_email}")
-    if st.button("Sair"):
-        if hasattr(st, 'logout'):
-            st.logout()
-        else:
-            st.session_state.authenticated = False
-            st.session_state.user_email = None
-            st.rerun()
-
-st.title("📊 Portal de Análises")
-
-apps, source = load_apps()
-
-q = st.text_input("🔎 Buscar app", "", placeholder="Filtrar por nome...").strip().casefold()
-if q:
-    apps = [a for a in apps if q in a["name"].casefold()]
-
-st.caption(f"{len(apps)} app(s) encontrados | Origem: {source}")
-st.write("Selecione um aplicativo abaixo para abrir em uma nova aba:")
-
-# Grid de aplicativos
-N_COLS = 3
-cols = st.columns(N_COLS)
-for i, app in enumerate(sorted(apps, key=lambda x: x['name'].casefold())):
-    with cols[i % N_COLS]:
-        with st.container(border=True):
-            st.subheader(f"{app.get('icon','↗️')}  {app['name']}")
-            st.caption(f"{app['url']}")
-            if hasattr(st, "link_button"):
-                st.link_button("Abrir App", app["url"], use_container_width=True)
-            else:
-                st.markdown(f"**[Abrir App]({app['url']})**")
-
-
-# Seção de Ajuda
-st.divider()
-with st.expander("ℹ️ Ajuda e Configuração"):
-    st.markdown(
-        """
-        **Como configurar a lista de apps**
-
-        A lista de aplicativos pode ser configurada de três maneiras, nesta ordem de prioridade:
-        1.  **Arquivo de Segredos (`.streamlit/secrets.toml`)**
-        2.  **Arquivo `apps.json`** (na raiz do projeto)
-        3.  **Arquivo `apps.csv`** (na raiz do projeto)
-
-        **Exemplo para `secrets.toml`:**
-        ```toml
-        [[apps]]
-        name = "Meu App 1"
-        url  = "[https://meu-app-1.streamlit.app](https://meu-app-1.streamlit.app)"
-        icon = "🧪"
-
-        [[apps]]
-        name = "Meu App 2"
-        url  = "[https://meu-app-2.streamlit.app](https://meu-app-2.streamlit.app)"
-        icon = "📈"
-        ```
-        ---
-        - Se um aplicativo pedir login novamente, é um comportamento normal, pois cada um tem sua própria autenticação.
-        - Se a mensagem **"Acesso não autorizado"** aparecer, seu e-mail precisa ser adicionado à lista de permissões pelo administrador.
-        """
-    )
+if __name__ == "__main__":
+    main()
 
 
 
