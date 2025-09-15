@@ -43,13 +43,7 @@ def check_oidc_available():
         return False, None, [f"Erro ao verificar OIDC: {str(e)}"]
 
 def resolve_auth_provider():
-    """Inspeciona st.secrets e tenta descobrir onde estão as chaves de OIDC/OAuth.
-    Suporta:
-      - [auth] com (client_id, client_secret, server_metadata_url|discovery_url, redirect_uri, cookie_secret)
-      - [auth.<nome>] com (client_id, client_secret, server_metadata_url|discovery_url) e, em [auth], (redirect_uri, cookie_secret)
-      - [oidc] legado com (client_id, client_secret, redirect_uri, discovery_url|server_metadata_url, cookie_secret)
-    Retorna (provider_arg, problems). Se provider_arg for None, chama-se st.login() sem nome.
-    """
+    """Inspeciona st.secrets e tenta descobrir onde estão as chaves de OIDC/OAuth."""
     problems = []
     auth_root = st.secrets.get("auth", {})
     # normalizar discovery_url -> server_metadata_url quando aparecer
@@ -64,7 +58,6 @@ def resolve_auth_provider():
     root_has_provider = all(str(root_cfg.get(k, "")).strip() for k in ("client_id","client_secret","server_metadata_url"))
     root_has_root = all(str(root_cfg.get(k, "")).strip() for k in ("redirect_uri","cookie_secret"))
     if root_has_provider and root_has_root:
-        # provider sem nome
         return None, []
     
     # 2) Caso B: provider nomeado dentro de [auth.<nome>]
@@ -76,7 +69,6 @@ def resolve_auth_provider():
                 named_candidate = name
                 break
     if named_candidate:
-        # precisa de redirect_uri e cookie_secret no [auth] raiz
         if not all(str(auth_root.get(k, "")).strip() for k in ("redirect_uri","cookie_secret")):
             miss = [k for k in ("redirect_uri","cookie_secret") if not str(auth_root.get(k, "")).strip()]
             problems.append("Faltando em [auth]: " + ", ".join(miss))
@@ -102,12 +94,9 @@ def resolve_auth_provider():
 # ===========================
 def simple_auth(username: str, password: str) -> tuple[bool, str]:
     """Autenticação simples como fallback"""
-    # Busca credenciais nos secrets
     fallback_users = st.secrets.get("fallback_auth", {}).get("users", {})
     
     if not fallback_users:
-        # Se não há usuários configurados, use uma lista padrão (apenas para demo)
-        # Em produção, sempre configure os usuários nos secrets!
         fallback_users = {
             "admin": {
                 "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
@@ -127,14 +116,27 @@ def simple_auth(username: str, password: str) -> tuple[bool, str]:
 # Allowlist / Roles
 # ===========================
 def get_allowlists():
+    """
+    Carrega as listas de permissão dos secrets de forma segura.
+    Garante que os valores sejam listas para evitar erros de iteração.
+    """
     auth = st.secrets.get("auth", {})
-    emails = { (e or "").strip().lower() for e in auth.get("allowed_emails", []) }
-    domains = { (d or "").strip().lower() for d in auth.get("allowed_domains", []) }
+    
+    # MODIFICADO: Garante que os valores sejam listas para evitar erros
+    allowed_emails_list = auth.get("allowed_emails", [])
+    if not isinstance(allowed_emails_list, list):
+        allowed_emails_list = [] # Usa lista vazia se o formato for inválido
+
+    allowed_domains_list = auth.get("allowed_domains", [])
+    if not isinstance(allowed_domains_list, list):
+        allowed_domains_list = [] # Usa lista vazia se o formato for inválido
+
+    emails = { (e or "").strip().lower() for e in allowed_emails_list }
+    domains = { (d or "").strip().lower() for d in allowed_domains_list }
     return emails, domains
 
 def is_allowed(email: str, emails: set[str], domains: set[str]):
     email = (email or "").strip().lower()
-    # Se não há listas configuradas, permite todos (para facilitar desenvolvimento)
     if not emails and not domains:
         return True
     if email in emails:
@@ -163,7 +165,7 @@ CSS = """
 .login-title {
     font-size: 1.25rem; font-weight: 700; margin-bottom: 0.25rem;
 }
-.login-sub { font-size: 0.95rem; opacity: 0.8; margin-bottom: 0.5rem; }
+.login-sub { font-size: 0.95rem; opacity: 0.8; margin-bottom: 1rem; }
 .google-btn { margin-top: 0.25rem; }
 
 .app-grid {
@@ -181,44 +183,6 @@ CSS = """
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
-# ===== Compat helpers / Debug =====
-import sys, platform
-from datetime import datetime
-
-def link_btn(label: str, url: str):
-    """Compat: usa st.link_button se existir; senão, mostra um link padrão."""
-    if hasattr(st, "link_button"):
-        st.link_button(label, url, type="primary", use_container_width=True)
-    else:
-        st.markdown(f"[**{label}**]({url})")
-
-def show_diag(note: str | None = None, error: Exception | None = None):
-    """Painel compacto de diagnóstico para entender 500 internos."""
-    with st.expander("🛠 Diagnóstico (local)", expanded=False):
-        if note:
-            st.info(note)
-        if error:
-            st.exception(error)
-        try:
-            provider_arg, provider_problems = resolve_auth_provider()
-        except Exception as e:
-            provider_arg, provider_problems = None, [f"resolve_auth_provider falhou: {e}"]
-        info = {
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "python": sys.version.split()[0],
-            "platform": platform.platform(),
-            "streamlit_version": getattr(st, "__version__", "unknown"),
-            "st_user_present": bool(getattr(st, "user", None)),
-            "st_user_is_logged": bool(getattr(getattr(st, "user", object()), "is_logged_in", False)),
-            "st_user_email": (getattr(getattr(st, "user", object()), "email", "") or ""),
-            "provider_arg": provider_arg,
-            "provider_problems": provider_problems,
-            "secrets_keys": sorted(list(st.secrets.keys())),
-            "has_[auth]": bool(st.secrets.get("auth")),
-            "has_[oidc]": bool(st.secrets.get("oidc")),
-        }
-        st.json(info)
-
 # ===========================
 # Apps loader (dinâmico)
 # ===========================
@@ -232,7 +196,6 @@ def _coerce_items(seq):
         icon = (it.get("icon") or it.get("emoji") or "↗️").strip() or "↗️"
         if name and url:
             out.append({"name": name, "url": url, "icon": icon})
-    # remove duplicadas por nome
     seen = set()
     dedup = []
     for it in out:
@@ -243,9 +206,6 @@ def _coerce_items(seq):
     return dedup
 
 def load_apps():
-    # 1) From secrets — formatos aceitos:
-    #    [[apps]] name="", url=""
-    #    [apps] items=[{name="", url=""}, ...]
     apps_from_secrets = st.secrets.get("apps", None)
     if isinstance(apps_from_secrets, list):
         coerced = _coerce_items(apps_from_secrets)
@@ -257,8 +217,7 @@ def load_apps():
             coerced = _coerce_items(items)
             if coerced:
                 return coerced, "secrets:[apps].items"
-
-    # 2) apps.json (raiz do projeto)
+    
     p_json = Path("apps.json")
     if p_json.exists():
         try:
@@ -274,7 +233,6 @@ def load_apps():
         except Exception as e:
             st.warning(f"apps.json inválido: {e}")
 
-    # 3) apps.csv (colunas: name,url[,icon])
     p_csv = Path("apps.csv")
     if p_csv.exists():
         try:
@@ -289,7 +247,6 @@ def load_apps():
         except Exception as e:
             st.warning(f"apps.csv inválido: {e}")
 
-    # 4) Fallback padrão (exemplos)
     fallback = [
         {"name": "Barras Agrupadas", "url": "https://barras-agrupado.streamlit.app", "icon": "📊"},
         {"name": "TGA & DTG", "url": "https://tga-dtg.streamlit.app", "icon": "🔥"},
@@ -308,29 +265,12 @@ def render_login_card():
     st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
     st.markdown('<div class="login-title">🚀 Portal de Análises</div>', unsafe_allow_html=True)
     
-    # Verifica disponibilidade de OIDC
     oidc_available, provider_arg, problems = check_oidc_available()
     
     if oidc_available and hasattr(st, 'login'):
-        # Usa OIDC/Google
+        # MODIFICADO: Layout simplificado apenas com o botão do Google
         st.markdown('<div class="login-sub">Entre com sua conta Google para continuar</div>', unsafe_allow_html=True)
         
-        # Campos visuais (desabilitados)
-        colu, colv = st.columns(2)
-        with colu:
-            st.text_input("Usuário", placeholder="Digite seu usuário", disabled=True, key="dummy_user")
-        with colv:
-            st.text_input("Senha", type="password", placeholder="Digite sua senha", disabled=True, key="dummy_pass")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.checkbox("Lembrar de mim", value=True, disabled=True)
-        with col2:
-            st.checkbox("Mostrar senha", value=False, disabled=True, key="dummy_show")
-        
-        st.caption("Este portal usa autenticação Google. Os campos acima são apenas visuais.")
-        
-        # Botão Google
         with st.container():
             st.markdown('<div class="google-btn">', unsafe_allow_html=True)
             if st.button("Entrar com Google", type="primary", use_container_width=True):
@@ -338,7 +278,6 @@ def render_login_card():
                     st.login(provider_arg) if provider_arg else st.login()
                 except Exception as e:
                     st.error(f"Erro ao iniciar login Google: {str(e)}")
-                    st.info("Recarregue a página ou use o login alternativo abaixo.")
             st.markdown('</div>', unsafe_allow_html=True)
             
     else:
@@ -350,22 +289,7 @@ def render_login_card():
                 st.warning("Login Google não disponível. Usando autenticação alternativa.")
                 for p in problems:
                     st.markdown(f"- {p}")
-                
-                # Dica rápida de dependência (Authlib)
-                st.info(
-                    """
-                    **Para habilitar login com Google:**
-                    1. Em `requirements.txt` adicione/garanta:
-                       ```
-                       streamlit>=1.42
-                       authlib>=1.3.2
-                       ```
-                    2. Configure `Secrets` com **[auth]** e (opcional) **[auth.<nome>]**.
-                    3. No Google Cloud, cadastre o `redirect_uri` que termina com **/oauth2callback**.
-                    """
-                )
         
-        # Formulário de login simples
         with st.form("login_form"):
             username = st.text_input("Usuário", placeholder="Digite seu usuário")
             password = st.text_input("Senha", type="password", placeholder="Digite sua senha")
@@ -390,32 +314,30 @@ def render_login_card():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ===========================
-# Conteúdo protegido (após login)
+# Main Application Logic
 # ===========================
 # Determina se está logado
 is_logged_in = False
 user_email = None
 
-# Primeiro verifica OIDC (se disponível)
 if hasattr(st, 'user') and getattr(st.user, 'is_logged_in', False):
     is_logged_in = True
     user_email = (getattr(st.user, 'email', '') or '').lower()
-# Senão, verifica session state (fallback auth)
 elif st.session_state.authenticated:
     is_logged_in = True
     user_email = st.session_state.user_email
 
-# Se não está logado, mostra tela de login
+# Se não está logado, mostra a tela de login e para a execução
 if not is_logged_in:
     render_login_card()
     st.stop()
 
-# Verifica permissões
+# A partir daqui, o usuário está logado.
+# Verifica permissões de acesso
 emails, domains = get_allowlists()
-
 if not is_allowed(user_email, emails, domains):
-    st.error("Acesso não autorizado. Solicite liberação ao administrador.")
-    if st.button("Fazer logout"):
+    st.error("Acesso não autorizado. Seu e-mail não está na lista de permissões.")
+    if st.button("Sair"):
         if hasattr(st, 'logout'):
             st.logout()
         else:
@@ -425,15 +347,14 @@ if not is_allowed(user_email, emails, domains):
     st.stop()
 
 # Verifica roles (opcional)
-required_role = None  # Mude para "admin" se necessário
+required_role = None
 if not has_role(user_email, required_role):
-    st.error("Você não tem permissão para acessar esta seção.")
+    st.error("Você não tem a permissão necessária para acessar esta seção.")
     st.stop()
 
 # ===========================
-# Interface Principal
+# Interface Principal (Conteúdo Protegido)
 # ===========================
-# Sidebar com informações do usuário
 with st.sidebar:
     st.caption(f"Logado como: {user_email}")
     if st.button("Sair"):
@@ -446,84 +367,58 @@ with st.sidebar:
 
 st.title("📊 Portal de Análises")
 
-# === Carregar apps dinamicamente ===
 apps, source = load_apps()
 
-# Filtro de busca
-q = st.text_input("🔎 Buscar app", "", placeholder="Nome contém...").strip().casefold()
+q = st.text_input("🔎 Buscar app", "", placeholder="Filtrar por nome...").strip().casefold()
 if q:
     apps = [a for a in apps if q in a["name"].casefold()]
 
-st.caption(f"{len(apps)} app(s) carregados • origem: {source}")
+st.caption(f"{len(apps)} app(s) encontrados | Origem: {source}")
 st.write("Selecione um aplicativo abaixo para abrir em uma nova aba:")
 
-# Grid responsivo simples
-try:
-    N_COLS = 3
-    cols = st.columns(N_COLS)
-    for i, app in enumerate(sorted(apps, key=lambda x: x['name'].casefold())):
-        with cols[i % N_COLS]:
-            st.markdown('<div class="app-card">', unsafe_allow_html=True)
+# Grid de aplicativos
+N_COLS = 3
+cols = st.columns(N_COLS)
+for i, app in enumerate(sorted(apps, key=lambda x: x['name'].casefold())):
+    with cols[i % N_COLS]:
+        with st.container(border=True):
             st.subheader(f"{app.get('icon','↗️')}  {app['name']}")
-            st.markdown(f'<div class="app-url">{app["url"]}</div>', unsafe_allow_html=True)
-            link_btn("Abrir app", app["url"])
-            st.markdown("</div>", unsafe_allow_html=True)
-except Exception as e:
-    st.error("Falha ao renderizar a grade de aplicativos.")
-    show_diag("Exceção ao montar o grid de apps", e)
+            st.caption(f"{app['url']}")
+            if hasattr(st, "link_button"):
+                st.link_button("Abrir App", app["url"], use_container_width=True)
+            else:
+                st.markdown(f"**[Abrir App]({app['url']})**")
 
-# Ajuda
+
+# Seção de Ajuda
 st.divider()
-with st.expander("ℹ️ Ajuda"):
+with st.expander("ℹ️ Ajuda e Configuração"):
     st.markdown(
         """
         **Como configurar a lista de apps**
 
-        Opção 1 — *Secrets* (`.streamlit/secrets.toml`):
+        A lista de aplicativos pode ser configurada de três maneiras, nesta ordem de prioridade:
+        1.  **Arquivo de Segredos (`.streamlit/secrets.toml`)**
+        2.  **Arquivo `apps.json`** (na raiz do projeto)
+        3.  **Arquivo `apps.csv`** (na raiz do projeto)
 
+        **Exemplo para `secrets.toml`:**
         ```toml
         [[apps]]
         name = "Meu App 1"
-        url  = "https://meu-app-1.streamlit.app"
+        url  = "[https://meu-app-1.streamlit.app](https://meu-app-1.streamlit.app)"
         icon = "🧪"
 
         [[apps]]
         name = "Meu App 2"
-        url  = "https://meu-app-2.streamlit.app"
+        url  = "[https://meu-app-2.streamlit.app](https://meu-app-2.streamlit.app)"
         icon = "📈"
         ```
-
-        **ou**
-
-        ```toml
-        [apps]
-        items = [
-          { name = "Meu App 1", url = "https://meu-app-1.streamlit.app", icon="🧪" },
-          { name = "Meu App 2", url = "https://meu-app-2.streamlit.app", icon="📈" },
-        ]
-        ```
-
-        Opção 2 — arquivo `apps.json` na raiz do repositório:
-
-        ```json
-        {
-          "items": [
-            { "name": "Meu App 1", "url": "https://meu-app-1.streamlit.app", "icon": "🧪" },
-            { "name": "Meu App 2", "url": "https://meu-app-2.streamlit.app", "icon": "📈" }
-          ]
-        }
-        ```
-
-        Opção 3 — arquivo `apps.csv` na raiz, com cabeçalho `name,url,icon`.
-
         ---
-
-        - Caso um app peça login novamente, é normal: cada app também valida acesso.
-        - Se aparecer **Acesso não autorizado**, peça liberação ao administrador.
-        - Problemas com a conta Google? Tente sair e entrar novamente em `accounts.google.com`.
+        - Se um aplicativo pedir login novamente, é um comportamento normal, pois cada um tem sua própria autenticação.
+        - Se a mensagem **"Acesso não autorizado"** aparecer, seu e-mail precisa ser adicionado à lista de permissões pelo administrador.
         """
     )
-
 
 
 
