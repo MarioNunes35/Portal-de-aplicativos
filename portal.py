@@ -197,6 +197,18 @@ def render_login_card():
                 st.warning("Login Google não disponível. Usando autenticação alternativa.")
                 for p in problems:
                     st.markdown(f"- {p}")
+                
+                # Se o problema é falta de Authlib, mostra instruções
+                if any("Authlib" in p for p in problems):
+                    st.info("""
+                    **Para habilitar login com Google:**
+                    1. Adicione ao arquivo `requirements.txt`:
+                       ```
+                       Authlib>=1.3.2
+                       ```
+                    2. Faça o redeploy do app
+                    3. Configure os secrets OIDC conforme documentação
+                    """)
         
         # Formulário de login simples
         with st.form("login_form"):
