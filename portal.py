@@ -17,51 +17,82 @@ if 'user_email' not in st.session_state:
 # OIDC preflight (checks Secrets before calling st.login)
 # ===========================
 def check_oidc_available():
-    """Verifica se OIDC está disponível e configurado"""
-    try:
-        # Verifica se st.login existe e está disponível
-        if not hasattr(st, 'login'):
-            return False, ["st.login não está disponível nesta versão do Streamlit"]
-        
-        # Verifica se há user info disponível
-        if hasattr(st, 'user') and getattr(st.user, 'is_logged_in', False):
-            return True, []
-            
-        # Verifica configuração OIDC
-        problems = check_oidc_secrets()
-        if problems:
-            return False, problems
-            
-        return True, []
-    except Exception as e:
-        return False, [f"Erro ao verificar OIDC: {str(e)}"]
-
-def check_oidc_secrets():
-    cfg = st.secrets.get("oidc", {})
-    required = ["client_id", "client_secret", "redirect_uri", "discovery_url", "cookie_secret"]
-    missing = [k for k in required if not str(cfg.get(k, "")).strip()]
+    """Verifica se OIDC está disponível e configurado. 
+    Retorna (available: bool, provider_arg: str|None, problems: list[str]).
+    """
     problems = []
-
-    if missing:
-        problems.append(f"Faltando em [oidc]: {', '.join(missing)}")
-
-    cid = cfg.get("client_id", "")
-    if cid and not cid.endswith(".apps.googleusercontent.com"):
-        problems.append("client_id parece inválido (não termina com .apps.googleusercontent.com)")
-
-    disc = cfg.get("discovery_url", "")
-    if disc and not disc.startswith("https://accounts.google.com/.well-known/openid-configuration"):
-        problems.append("discovery_url deve ser https://accounts.google.com/.well-known/openid-configuration")
-
-    csec = cfg.get("cookie_secret", "")
-    if csec and len(csec) < 43:
-        problems.append("cookie_secret curto (gere um novo com ~32 bytes, ~43+ chars urlsafe)")
-
-    return problems
-
-# ===========================
-# Fallback Authentication
-# ===========================
+    try:
+        # 1) st.login disponível?
+        if not hasattr(st, "login"):
+            return False, None, ["st.login não está disponível nesta versão do Streamlit"]
+        
+        # 2) Já logado?
+        if hasattr(st, "user") and getattr(st.user, "is_logged_in", False):
+            return True, None, []
+        
+        # 3) Resolver provider a partir de secrets
+        provider_arg, provider_problems = resolve_auth_provider()
+        problems.extend(provider_problems)
+        if problems:
+            return False, provider_arg, problems
+        
+        return True, provider_arg, []
+    except Exception as e:
+        return False, None, [f"Erro ao verificar OIDC: {str(e)}"]
+def resolve_auth_provider():
+    """Inspeciona st.secrets e tenta descobrir onde estão as chaves de OIDC/OAuth.
+    Suporta:
+      - [auth] com (client_id, client_secret, server_metadata_url|discovery_url, redirect_uri, cookie_secret)
+      - [auth.<nome>] com (client_id, client_secret, server_metadata_url|discovery_url) e, em [auth], (redirect_uri, cookie_secret)
+      - [oidc] legado com (client_id, client_secret, redirect_uri, discovery_url|server_metadata_url, cookie_secret)
+    Retorna (provider_arg, problems). Se provider_arg for None, chama-se st.login() sem nome.
+    """
+    problems = []
+    auth_root = st.secrets.get("auth", {})
+    # normalizar discovery_url -> server_metadata_url quando aparecer
+    def norm_provider(cfg: dict) -> dict:
+        cfg = dict(cfg or {})
+        if "server_metadata_url" not in cfg and "discovery_url" in cfg:
+            cfg["server_metadata_url"] = cfg.get("discovery_url")
+        return cfg
+    
+    # 1) Caso A: tudo em [auth]
+    root_cfg = norm_provider(auth_root)
+    root_has_provider = all(str(root_cfg.get(k, "")).strip() for k in ("client_id","client_secret","server_metadata_url"))
+    root_has_root = all(str(root_cfg.get(k, "")).strip() for k in ("redirect_uri","cookie_secret"))
+    if root_has_provider and root_has_root:
+        # provider sem nome
+        return None, []
+    
+    # 2) Caso B: provider nomeado dentro de [auth.<nome>]
+    named_candidate = None
+    for name, cfg in auth_root.items():
+        if isinstance(cfg, dict):
+            cfg = norm_provider(cfg)
+            if all(str(cfg.get(k, "")).strip() for k in ("client_id","client_secret","server_metadata_url")):
+                named_candidate = name
+                break
+    if named_candidate:
+        # precisa de redirect_uri e cookie_secret no [auth] raiz
+        if not all(str(auth_root.get(k, "")).strip() for k in ("redirect_uri","cookie_secret")):
+            miss = [k for k in ("redirect_uri","cookie_secret") if not str(auth_root.get(k, "")).strip()]
+            problems.append("Faltando em [auth]: " + ", ".join(miss))
+        return str(named_candidate), problems
+    
+    # 3) Caso C: bloco legado [oidc]
+    legacy = norm_provider(st.secrets.get("oidc", {}))
+    if legacy:
+        req = ["client_id","client_secret","redirect_uri","server_metadata_url","cookie_secret"]
+        miss = [k for k in req if not str(legacy.get(k, "")).strip()]
+        if miss:
+            problems.append("Faltando em [oidc]: " + ", ".join(miss))
+        else:
+            return "oidc", []
+    
+    # 4) Não encontrado
+    if not problems:
+        problems.append("Nenhuma configuração válida encontrada. Preencha [auth] e/ou [auth.<nome>] com as chaves necessárias.")
+    return None, problems
 def simple_auth(username: str, password: str) -> tuple[bool, str]:
     """Autenticação simples como fallback"""
     # Busca credenciais nos secrets
@@ -156,7 +187,7 @@ def render_login_card():
     st.markdown('<div class="login-title">🚀 Portal de Análises</div>', unsafe_allow_html=True)
     
     # Verifica disponibilidade de OIDC
-    oidc_available, problems = check_oidc_available()
+    oidc_available, provider_arg, problems = check_oidc_available()
     
     if oidc_available and hasattr(st, 'login'):
         # Usa OIDC/Google
@@ -182,7 +213,7 @@ def render_login_card():
             st.markdown('<div class="google-btn">', unsafe_allow_html=True)
             if st.button("Entrar com Google", type="primary", use_container_width=True):
                 try:
-                    st.login("oidc")
+                    st.login(provider_arg) if provider_arg else st.login()
                 except Exception as e:
                     st.error(f"Erro ao iniciar login Google: {str(e)}")
                     st.info("Recarregue a página ou use o login alternativo abaixo.")
