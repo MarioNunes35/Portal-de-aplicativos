@@ -2,6 +2,8 @@ import streamlit as st
 from urllib.parse import urlparse
 import hashlib
 import hmac
+from pathlib import Path
+import json, csv
 
 st.set_page_config(page_title="Portal de Análises", page_icon="🚀", layout="wide")
 
@@ -190,7 +192,6 @@ def link_btn(label: str, url: str):
     else:
         st.markdown(f"[**{label}**]({url})")
 
-
 def show_diag(note: str | None = None, error: Exception | None = None):
     """Painel compacto de diagnóstico para entender 500 internos."""
     with st.expander("🛠 Diagnóstico (local)", expanded=False):
@@ -217,6 +218,87 @@ def show_diag(note: str | None = None, error: Exception | None = None):
             "has_[oidc]": bool(st.secrets.get("oidc")),
         }
         st.json(info)
+
+# ===========================
+# Apps loader (dinâmico)
+# ===========================
+def _coerce_items(seq):
+    out = []
+    for it in seq:
+        if not isinstance(it, dict):
+            continue
+        name = (it.get("name") or it.get("title") or "").strip()
+        url = (it.get("url") or it.get("href") or "").strip()
+        icon = (it.get("icon") or it.get("emoji") or "↗️").strip() or "↗️"
+        if name and url:
+            out.append({"name": name, "url": url, "icon": icon})
+    # remove duplicadas por nome
+    seen = set()
+    dedup = []
+    for it in out:
+        if it["name"] in seen:
+            continue
+        seen.add(it["name"])
+        dedup.append(it)
+    return dedup
+
+def load_apps():
+    # 1) From secrets — formatos aceitos:
+    #    [[apps]] name="", url=""
+    #    [apps] items=[{name="", url=""}, ...]
+    apps_from_secrets = st.secrets.get("apps", None)
+    if isinstance(apps_from_secrets, list):
+        coerced = _coerce_items(apps_from_secrets)
+        if coerced:
+            return coerced, "secrets:[[apps]]"
+    elif isinstance(apps_from_secrets, dict):
+        items = apps_from_secrets.get("items")
+        if isinstance(items, list):
+            coerced = _coerce_items(items)
+            if coerced:
+                return coerced, "secrets:[apps].items"
+
+    # 2) apps.json (raiz do projeto)
+    p_json = Path("apps.json")
+    if p_json.exists():
+        try:
+            data = json.loads(p_json.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                coerced = _coerce_items(data)
+                if coerced:
+                    return coerced, "apps.json"
+            elif isinstance(data, dict) and "items" in data:
+                coerced = _coerce_items(data.get("items", []))
+                if coerced:
+                    return coerced, "apps.json:items"
+        except Exception as e:
+            st.warning(f"apps.json inválido: {e}")
+
+    # 3) apps.csv (colunas: name,url[,icon])
+    p_csv = Path("apps.csv")
+    if p_csv.exists():
+        try:
+            rows = []
+            with p_csv.open("r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for r in reader:
+                    rows.append(r)
+            coerced = _coerce_items(rows)
+            if coerced:
+                return coerced, "apps.csv"
+        except Exception as e:
+            st.warning(f"apps.csv inválido: {e}")
+
+    # 4) Fallback padrão (exemplos)
+    fallback = [
+        {"name": "Barras Agrupadas", "url": "https://barras-agrupado.streamlit.app", "icon": "📊"},
+        {"name": "TGA & DTG", "url": "https://tga-dtg.streamlit.app", "icon": "🔥"},
+        {"name": "Raman Deconvolution", "url": "https://raman-deconv.streamlit.app", "icon": "📈"},
+        {"name": "Linha Base & Suavização", "url": "https://linha-base.streamlit.app", "icon": "🧰"},
+        {"name": "Histogramas", "url": "https://histogramas.streamlit.app", "icon": "📉"},
+        {"name": "Colunas 3D", "url": "https://colunas-3d.streamlit.app", "icon": "🧱"},
+    ]
+    return fallback, "fallback"
 
 # ===========================
 # Login Functions
@@ -363,26 +445,26 @@ with st.sidebar:
             st.rerun()
 
 st.title("📊 Portal de Análises")
-st.write("Selecione um aplicativo abaixo para abrir em uma nova aba:")
 
-# Lista de apps (exemplo)
-apps = [
-    {"name": "Barras Agrupadas", "url": "https://barras-agrupado.streamlit.app"},
-    {"name": "TGA & DTG", "url": "https://tga-dtg.streamlit.app"},
-    {"name": "Raman Deconvolution", "url": "https://raman-deconv.streamlit.app"},
-    {"name": "Linha Base & Suavização", "url": "https://linha-base.streamlit.app"},
-    {"name": "Histogramas", "url": "https://histogramas.streamlit.app"},
-    {"name": "Colunas 3D", "url": "https://colunas-3d.streamlit.app"},
-]
+# === Carregar apps dinamicamente ===
+apps, source = load_apps()
+
+# Filtro de busca
+q = st.text_input("🔎 Buscar app", "", placeholder="Nome contém...").strip().casefold()
+if q:
+    apps = [a for a in apps if q in a["name"].casefold()]
+
+st.caption(f"{len(apps)} app(s) carregados • origem: {source}")
+st.write("Selecione um aplicativo abaixo para abrir em uma nova aba:")
 
 # Grid responsivo simples
 try:
     N_COLS = 3
     cols = st.columns(N_COLS)
-    for i, app in enumerate(apps):
+    for i, app in enumerate(sorted(apps, key=lambda x: x['name'].casefold())):
         with cols[i % N_COLS]:
             st.markdown('<div class="app-card">', unsafe_allow_html=True)
-            st.subheader(app["name"])
+            st.subheader(f"{app.get('icon','↗️')}  {app['name']}")
             st.markdown(f'<div class="app-url">{app["url"]}</div>', unsafe_allow_html=True)
             link_btn("Abrir app", app["url"])
             st.markdown("</div>", unsafe_allow_html=True)
@@ -395,11 +477,53 @@ st.divider()
 with st.expander("ℹ️ Ajuda"):
     st.markdown(
         """
+        **Como configurar a lista de apps**
+
+        Opção 1 — *Secrets* (`.streamlit/secrets.toml`):
+
+        ```toml
+        [[apps]]
+        name = "Meu App 1"
+        url  = "https://meu-app-1.streamlit.app"
+        icon = "🧪"
+
+        [[apps]]
+        name = "Meu App 2"
+        url  = "https://meu-app-2.streamlit.app"
+        icon = "📈"
+        ```
+
+        **ou**
+
+        ```toml
+        [apps]
+        items = [
+          { name = "Meu App 1", url = "https://meu-app-1.streamlit.app", icon="🧪" },
+          { name = "Meu App 2", url = "https://meu-app-2.streamlit.app", icon="📈" },
+        ]
+        ```
+
+        Opção 2 — arquivo `apps.json` na raiz do repositório:
+
+        ```json
+        {
+          "items": [
+            { "name": "Meu App 1", "url": "https://meu-app-1.streamlit.app", "icon": "🧪" },
+            { "name": "Meu App 2", "url": "https://meu-app-2.streamlit.app", "icon": "📈" }
+          ]
+        }
+        ```
+
+        Opção 3 — arquivo `apps.csv` na raiz, com cabeçalho `name,url,icon`.
+
+        ---
+
         - Caso um app peça login novamente, é normal: cada app também valida acesso.
         - Se aparecer **Acesso não autorizado**, peça liberação ao administrador.
         - Problemas com a conta Google? Tente sair e entrar novamente em `accounts.google.com`.
         """
     )
+
 
 
 
