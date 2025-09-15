@@ -1,452 +1,157 @@
-# streamlit_app.py
+
 import streamlit as st
-import hashlib
-import sqlite3
-import os
-from datetime import datetime, timedelta
+from urllib.parse import urlparse
+from auth_guard import guard, userbox
 
-# --- Configuração Inicial ---
-st.set_page_config(page_title="Portal de Apps", layout="wide", initial_sidebar_state="collapsed")
-DATA_DIR = "data"
-USER_DB_PATH = os.path.join(DATA_DIR, "users.db")
+st.set_page_config(page_title="Portal de Análises", page_icon="🚀", layout="wide")
 
-# --- Funções de Autenticação ---
-
-def hash_password(password: str) -> str:
-    """Cria hash seguro da senha"""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def create_user_db():
-    """Cria o banco de dados e a tabela de usuários se não existirem."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with sqlite3.connect(USER_DB_PATH) as con:
-        cur = con.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users(
-                id INTEGER PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at TEXT
-            );
-        """)
-        cur.execute("SELECT id FROM users WHERE username = 'admin'")
-        if not cur.fetchone():
-            admin_pass = hash_password("adminenge1")
-            cur.execute("""
-                INSERT INTO users(username, password_hash, created_at)
-                VALUES(?, ?, ?)
-            """, ("admin", admin_pass, datetime.utcnow().isoformat()))
-        con.commit()
-
-def validate_user(username: str, password: str) -> bool:
-    """Valida as credenciais do usuário no banco de dados."""
-    if not username or not password:
-        return False
-    
-    with sqlite3.connect(USER_DB_PATH) as con:
-        cur = con.cursor()
-        cur.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
-        result = cur.fetchone()
-        
-        if not result:
-            return False
-        
-        password_hash = result[0]
-        return hash_password(password) == password_hash
-
-# --- Estilo Visual (baseado no seu app que funciona) ---
-
-PORTAL_STYLE_CSS = """
+# ---------- Custom CSS to keep the old look ----------
+CSS = """
 <style>
-.stApp {
-  background:
-    radial-gradient(1200px 500px at 20% -10%, rgba(99,102,241,0.25), transparent 40%),
-    radial-gradient(1000px 450px at 90% 10%, rgba(45,212,191,0.22), transparent 40%),
-    linear-gradient(180deg, #121317 0%, #0f1116 100%) !important;
-  color: #EAEAF1;
+/* Center wrapper */
+.login-wrap {
+  max-width: 620px;
+  margin: 5vh auto 3rem auto;
+  padding: 2.2rem 2rem 1.6rem 2rem;
+  border-radius: 20px;
+  background: rgba(22, 22, 26, 0.85);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
 }
-
-/* Header fixo */
-.nav { 
-  position: sticky; top: 0; z-index: 20; padding: 14px 22px; margin: -1.2rem -1rem 0 -1rem;
-  backdrop-filter: blur(8px); background: rgba(255,255,255,0.06);
-  border-bottom: 1px solid rgba(255,255,255,0.12); 
-  display: flex; justify-content: space-between; align-items: center;
-}
-.brand { 
-  font-weight: 700; font-size: 1.05rem; letter-spacing: .02em; 
-  display: flex; align-items: center; gap: 12px;
-}
-
-/* Inputs */
-.block-container input[type="text"]{
-  background: rgba(255,255,255,0.08) !important; 
-  border: 1px solid rgba(255,255,255,0.20) !important;
-  border-radius: 999px !important; 
-  color: #fff !important;
-  padding: 16px 20px !important;
-  font-size: 16px !important;
-}
-.block-container .stTextInput > div > div{ 
-  border-radius: 999px !important; 
-}
-
-/* Cards dos apps */
-.card{ 
-  position: relative; overflow: hidden; padding: 28px 24px 22px 24px; border-radius: 20px;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; 
-  margin-bottom: 28px;
-  height: 320px;
-  display: flex;
-  flex-direction: column;
-}
-.card:hover{ 
-  transform: translateY(-2px); 
-  box-shadow: 0 16px 40px rgba(0,0,0,0.45); 
-  border-color: rgba(255,255,255,0.28); 
-}
-.card .accent{ 
-  position: absolute; left: 0; top: 0; bottom: 0; width: 4px; 
-}
-.icon{ 
-  width: 72px; height: 72px; border-radius: 50%; display: flex; 
-  align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.20); 
-  font-size: 32px; margin-bottom: 16px; 
-}
-.card h3{ 
-  margin: 6px 0 8px 0; font-size: 1.25rem; color: #fff; font-weight: 600;
-}
-.card p{ 
-  margin: 0 0 16px 0; color: #CBD5E1; line-height: 1.4; 
-  flex-grow: 1;
-}
-.actions{ 
-  display: flex; gap: 12px; align-items: center; margin-top: auto; 
-}
-.btn{ 
-  padding: 12px 20px; border-radius: 12px; background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.22); color: #fff; text-decoration: none; 
-  font-weight: 600; font-size: 14px;
-  transition: background .15s ease, border-color .15s ease, transform .15s ease;
-  display: inline-block; text-align: center;
-}
-.btn:hover{ 
-  background: rgba(255,255,255,0.16); 
-  border-color: rgba(255,255,255,0.32); 
-  transform: translateY(-1px); 
-}
-
-/* Títulos */
-h1, h2, h3{ 
-  color: #fff; 
-} 
-.subtitle{ 
-  color: #CBD5E1; margin-top: -6px; 
-}
-
-/* Responsividade */
-.stColumn > div {
-  padding-left: 0.5rem !important;
-  padding-right: 0.5rem !important;
-}
-
-/* Botão de logout */
-.logout-btn {
-  background: rgba(239, 68, 68, 0.1) !important;
-  border: 1px solid rgba(239, 68, 68, 0.3) !important;
-  color: #ef4444 !important;
-  padding: 8px 16px !important;
-  border-radius: 8px !important;
-  font-weight: 600 !important;
-  transition: all 0.2s !important;
-}
-.logout-btn:hover {
-  background: rgba(239, 68, 68, 0.2) !important;
-  border-color: rgba(239, 68, 68, 0.5) !important;
-}
-
-/* LOGIN FORM */
-.login-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 20px;
-}
-
-[data-testid="stForm"] {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.18) !important;
-    border-radius: 20px !important;
-    padding: 24px !important;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.4) !important;
-    backdrop-filter: blur(10px) !important;
-    width: min(400px, 90vw) !important;
-    max-height: 70vh !important;
-    position: fixed !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    z-index: 1000 !important;
-}
-
 .login-title {
-    font-size: 28px !important;
-    font-weight: 700 !important;
-    color: #fff !important;
-    margin-bottom: 4px !important;
-    text-align: center !important;
+  font-size: 2.0rem;
+  font-weight: 800;
+  margin-bottom: 0.25rem;
 }
-
-.login-subtitle {
-    color: #CBD5E1 !important;
-    font-size: 14px !important;
-    text-align: center !important;
-    margin-bottom: 20px !important;
+.login-sub {
+  opacity: .85;
+  margin: 0 0 1.4rem 0;
 }
-
-/* Inputs do login */
-.login-container input[type="text"],
-.login-container input[type="password"] {
-    background: rgba(255,255,255,0.08) !important;
-    border: 1px solid rgba(255,255,255,0.20) !important;
-    border-radius: 12px !important;
-    color: #fff !important;
-    padding: 16px 20px !important;
-    font-size: 16px !important;
-    height: 56px !important;
+label, .stCheckbox label {
+  font-weight: 600;
 }
-
-.login-container input[type="text"]:focus,
-.login-container input[type="password"]:focus {
-    border-color: rgba(99,102,241,0.5) !important;
-    box-shadow: 0 0 0 2px rgba(99,102,241,0.1) !important;
+.small-note {
+  font-size: 0.85rem;
+  opacity: .70;
 }
-
-/* Botão de login */
-.login-container .stButton > button {
-    width: 100% !important;
-    padding: 16px 24px !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 12px !important;
-    font-size: 16px !important;
-    font-weight: 600 !important;
-    height: 56px !important;
-    margin-top: 24px !important;
-    transition: all 0.2s !important;
+.google-btn > button {
+  width: 100%;
+  height: 44px;
+  font-weight: 700;
 }
-
-.login-container .stButton > button:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3) !important;
+.google-btn > button:before {
+  content: " ";
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  vertical-align: -3px;
+  background-image: url('https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg');
+  background-size: cover;
+}
+.app-card {
+    border: 1px solid var(--secondary-background-color);
+    border-radius: 0.75rem;
+    padding: 0.9rem 0.9rem 0.6rem 0.9rem;
+    height: 100%;
+    background: var(--background-color);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.06);
+}
+.app-url {
+    font-size: 0.8rem; opacity: 0.7; margin-top: 0.25rem;
+    word-break: break-all;
 }
 </style>
 """
+st.markdown(CSS, unsafe_allow_html=True)
 
-# --- Página de Login ---
+# ---------- Apps list ----------
+APPS = [
+    {"name": "TG/ADT Events", "url": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app"},
+    {"name": "Stack Graph", "url": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app"},
+    {"name": "Rheology App", "url": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app"},
+    {"name": "Mechanical Properties", "url": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app"},
+    {"name": "Baseline Smoothing", "url": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app"},
+    {"name": "Isotherms App", "url": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app"},
+    {"name": "Histograms", "url": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app"},
+    {"name": "Column 3D Line", "url": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app"},
+    {"name": "Crystallinity DSC/XRD", "url": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app"},
+    {"name": "Column 3D", "url": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app"},
+    {"name": "Kinetic Models", "url": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app"},
+    {"name": "Python Launcher", "url": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app"},
+]
 
-def show_login_page():
-    """Exibe a página de login."""
-    st.markdown(PORTAL_STYLE_CSS, unsafe_allow_html=True)
-    
-    with st.form("login_form", clear_on_submit=False):
-        st.markdown('<h1 class="login-title">🚀 Portal de Análises</h1>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">Entre com suas credenciais para continuar</p>', unsafe_allow_html=True)
+def render_login_card():
+    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="login-title">🚀 Portal de Análises</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-sub">Entre com sua conta Google para continuar</div>', unsafe_allow_html=True)
 
-        username = st.text_input("Usuário", placeholder="Digite seu usuário", key="login_username")
-        password = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="login_password")
-        
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            remember = st.checkbox("Lembrar-me", value=True)
-        with col2:
-            show_pwd = st.checkbox("Mostrar senha")
-            
-        if show_pwd:
-            password = st.text_input("Senha visível", value=password, placeholder="Digite sua senha", key="login_password_visible")
-        
-        submitted = st.form_submit_button("Entrar")
-
-    if submitted:
-        if not username or not password:
-            st.error("❌ Preencha usuário e senha.")
-        else:
-            if validate_user(username, password):
-                st.session_state.authenticated = True
-                st.session_state["current_user"] = username
-                if remember:
-                    st.session_state["remember_me"] = True
-                st.success("✅ Login realizado com sucesso!")
-                st.rerun()
-            else:
-                st.error("❌ Usuário ou senha inválidos.")
-
-
-def show_portal():
-    """Exibe o portal de aplicativos."""
-    st.markdown(PORTAL_STYLE_CSS, unsafe_allow_html=True)
-    
-    # Header com logout (seguindo o padrão do seu app)
-    st.markdown('''
-    <div class="nav">
-        <span class="brand">
-            <span>🚀</span>
-            <span>Portal de Análises</span>
-        </span>
-    </div>
-    ''', unsafe_allow_html=True)
-    
-    # Botão de logout posicionado no canto superior direito
-    col1, col2 = st.columns([10, 1])
+    colu, colv = st.columns(2)
+    with colu:
+        st.text_input("Usuário", placeholder="Digite seu usuário", disabled=True)
+    with colv:
+        st.text_input("Senha", type="password", placeholder="Digite sua senha", disabled=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.checkbox("Lembrar-me", value=True, disabled=True)
     with col2:
-        if st.button("Sair", key="logout", help="Fazer logout"):
-            st.session_state.authenticated = False
-            st.rerun()
-    
-    # Título e descrição
-    st.markdown("### Seus aplicativos")
-    st.markdown('<p class="subtitle">Acesse as ferramentas de análise de forma rápida e organizada</p>', unsafe_allow_html=True)
-    
-    # Busca
-    search_query = st.text_input("Buscar", placeholder="🔍 Buscar aplicativos...", label_visibility="collapsed")
-    
-    # Lista de aplicativos
-    APPS = [
-        {
-            "name": "TG/ADT Events",
-            "desc": "Análise de eventos térmicos em TG/ADT com identificação automática de picos e eventos.",
-            "emoji": "🔥",
-            "url": "https://apptgadtgeventspy-hqeqt7yljzwra3r7nmdhju.streamlit.app/",
-            "accent": "linear-gradient(180deg, #ef4444, #dc2626)",
-        },
-        {
-            "name": "Stack Graph", 
-            "desc": "Criação de gráficos empilhados para visualização de dados multidimensionais.",
-            "emoji": "📊",
-            "url": "https://appstackgraphpy-ijew8pyut2jkc4x4pa7nbv.streamlit.app/",
-            "accent": "linear-gradient(180deg, #3b82f6, #1d4ed8)",
-        },
-        {
-            "name": "Rheology App",
-            "desc": "Análise completa de dados de reologia com ajuste de modelos viscoelásticos.",
-            "emoji": "🔄",
-            "url": "https://apprheologyapppy-mbkr3wmbdb76t3ysvlfecr.streamlit.app/",
-            "accent": "linear-gradient(180deg, #8b5cf6, #7c3aed)",
-        },
-        {
-            "name": "Mechanical Properties",
-            "desc": "Cálculo de propriedades mecânicas e análise de tensão-deformação.",
-            "emoji": "⚙️",
-            "url": "https://appmechanicalpropertiespy-79l8dejt9kfmmafantscut.streamlit.app/",
-            "accent": "linear-gradient(180deg, #6b7280, #4b5563)",
-        },
-        {
-            "name": "Baseline Smoothing",
-            "desc": "Suavização de linha de base em gráficos com algoritmos avançados.",
-            "emoji": "📈",
-            "url": "https://appbaselinesmoothinglineplotpy-mvx5cnwr5szg4ghwpbx379.streamlit.app/",
-            "accent": "linear-gradient(180deg, #10b981, #059669)",
-        },
-        {
-            "name": "Isotherms App",
-            "desc": "Análise de isotermas de adsorção com modelos de Langmuir e Freundlich.",
-            "emoji": "🌡️",
-            "url": "https://isothermsappfixedpy-ropmkqgbbxujhvkd6pfxgi.streamlit.app/",
-            "accent": "linear-gradient(180deg, #f59e0b, #d97706)",
-        },
-        {
-            "name": "Histograms",
-            "desc": "Geração de histogramas customizados com análise estatística completa.",
-            "emoji": "📶",
-            "url": "https://apphistogramspy-b3kfy7atbdhgxx8udeduma.streamlit.app/",
-            "accent": "linear-gradient(180deg, #ec4899, #db2777)",
-        },
-        {
-            "name": "Column 3D Line",
-            "desc": "Visualização de dados em 3D com projeções e rotação interativa.",
-            "emoji": "🌐",
-            "url": "https://column3dpyline2inmoduleimportdash-kdqhfwwyyhdtb48x4z3kkn.streamlit.app/",
-            "accent": "linear-gradient(180deg, #06b6d4, #0891b2)",
-        },
-        {
-            "name": "Crystallinity DSC/XRD",
-            "desc": "Cálculo de cristalinidade por DSC e XRD com análise comparativa.",
-            "emoji": "💎",
-            "url": "https://appcrystallinitydscxrdpy-wqtymsdcco2nuem7fv3hve.streamlit.app/",
-            "accent": "linear-gradient(180deg, #a855f7, #9333ea)",
-        },
-        {
-            "name": "Column 3D",
-            "desc": "Visualização de dados em colunas 3D com mapeamento de cores.",
-            "emoji": "🏛️",
-            "url": "https://column3dpy-cskafquxluvyv23hbnhxli.streamlit.app/",
-            "accent": "linear-gradient(180deg, #84cc16, #65a30d)",
-        },
-        {
-            "name": "Kinetic Models",
-            "desc": "Ajuste de modelos cinéticos com otimização de parâmetros.",
-            "emoji": "⚗️",
-            "url": "https://kineticmodelsapppy-fz8qyt64fahje5acofqpcm.streamlit.app/",
-            "accent": "linear-gradient(180deg, #f97316, #ea580c)",
-        },
-        {
-            "name": "Python Launcher",
-            "desc": "Executor de scripts Python online com ambiente isolado.",
-            "emoji": "🐍",
-            "url": "https://pythonlauncherfixedpy-yschqh6qwzl526xurdeoca.streamlit.app/",
-            "accent": "linear-gradient(180deg, #facc15, #eab308)",
-        },
-    ]
-    
-    # Filtrar apps
-    query = search_query.lower().strip() if search_query else ""
-    filtered_apps = [app for app in APPS if query in app["name"].lower() or query in app["desc"].lower()] if query else APPS
-    
-    # Renderizar cards
-    if filtered_apps:
-        cols = st.columns(3, gap="large")
-        
-        for i, app in enumerate(filtered_apps):
-            with cols[i % 3]:
-                st.markdown(f"""
-                <div class="card">
-                    <div class="accent" style="background:{app['accent']};"></div>
-                    <div class="icon">{app['emoji']}</div>
-                    <h3>{app['name']}</h3>
-                    <p>{app['desc']}</p>
-                    <div class="actions">
-                        <a class="btn" href="{app['url']}" target="_blank" rel="noopener">Abrir aplicativo →</a>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.info("🔍 Nenhum aplicativo encontrado para o termo buscado.")
+        st.checkbox("Mostrar senha", value=False, disabled=True)
 
+    st.caption("Este portal usa autenticação Google. Os campos acima são apenas visuais.")
 
-# --- Lógica Principal ---
+    # Botão que dispara o fluxo OIDC oficial
+    with st.container():
+        st.markdown('<div class="google-btn">', unsafe_allow_html=True)
+        if st.button("Entrar com Google", type="primary", use_container_width=True):
+            st.login("oidc")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-def main():
-    """Função principal que controla qual página exibir."""
-    # Criar banco de dados
-    create_user_db()
-    
-    # Inicializar estado de autenticação
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    
-    # Exibir página apropriada
-    if st.session_state.authenticated:
-        show_portal()
-    else:
-        show_login_page()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if __name__ == "__main__":
-    main()
+# ---------- If not logged, show the old-looking login and stop ----------
+if not getattr(st.user, "is_logged_in", False):
+    render_login_card()
+    st.stop()
+
+# ---------- Logged in: now enforce allowlist/roles and show portal ----------
+user = guard()     # checks allowlist + roles
+userbox(user)
+
+st.title("📚 Apps disponíveis")
+q = st.text_input("Buscar apps por nome:", placeholder="Ex.: histogram, 3D, rheology...").strip().lower()
+
+def matches(app, q):
+    if not q:
+        return True
+    return q in app["name"].lower() or q in app["url"].lower()
+
+apps = [a for a in APPS if matches(a, q)]
+st.caption(f"{len(apps)} app(s) encontrado(s).")
+
+N_COLS = 3
+cols = st.columns(N_COLS)
+
+def short_host(url: str) -> str:
+    try:
+        return urlparse(url).netloc.replace(".streamlit.app", "")
+    except Exception:
+        return url
+
+for i, app in enumerate(apps):
+    with cols[i % N_COLS]:
+        st.markdown('<div class="app-card">', unsafe_allow_html=True)
+        st.subheader(app["name"])
+        st.markdown(f'<div class="app-url">{app["url"]}</div>', unsafe_allow_html=True)
+        st.link_button("Abrir app", app["url"], type="primary", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+st.divider()
+with st.expander("ℹ️ Ajuda"):
+    st.markdown("""
+    - Caso um app peça login novamente, é normal: cada app também valida acesso.
+    - Se aparecer **Acesso não autorizado**, peça liberação ao administrador.
+    - Problemas com a conta Google? Tente sair e entrar novamente em `accounts.google.com`.
+    """)
 
 
 
